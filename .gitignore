@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Google Credentials
+google-credentials.json
