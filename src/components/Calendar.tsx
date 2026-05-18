@@ -5,6 +5,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ScrollReveal from './ScrollReveal';
 import { DaySchedule, DayStatus, TimeSlot } from '../data/schedule';
 
+// 🌟 ฟังก์ชันพิเศษสำหรับดึงวันที่/เดือน/ปี ของฝั่งประเทศไทย (Asia/Bangkok) เสมอ
+const getThailandDateDetails = () => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric'
+  });
+  const parts = formatter.formatToParts(new Date());
+  
+  const thYear = parseInt(parts.find(p => p.type === 'year')?.value || '2026', 10);
+  // Intl คืนค่า month เป็น 1-12 แต่ระบบ Date ทั่วไปใช้ 0-11 จึงต้องลบออก 1
+  const thMonth = parseInt(parts.find(p => p.type === 'month')?.value || '1', 10) - 1;
+  const thDay = parseInt(parts.find(p => p.type === 'day')?.value || '1', 10);
+
+  return { thYear, thMonth, thDay };
+};
+
 // Helper to format date as YYYY-MM-DD
 const formatDate = (year: number, month: number, day: number) => {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -23,7 +41,11 @@ const getDayData = (year: number, month: number, day: number, remoteScheduleData
 };
 
 export default function Calendar() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // 🌟 เริ่มต้น State ปฏิทินโดยใช้ปีและเดือนตามเวลาของประเทศไทย
+  const [currentDate, setCurrentDate] = useState(() => {
+    const { thYear, thMonth, thDay } = getThailandDateDetails();
+    return new Date(thYear, thMonth, thDay);
+  });
   const [selectedDay, setSelectedDay] = useState<{ day: number, data: DaySchedule } | null>(null);
   const [remoteScheduleData, setRemoteScheduleData] = useState<Record<string, DaySchedule>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -62,14 +84,17 @@ export default function Calendar() {
     "July", "August", "September", "October", "November", "December"
   ];
 
+  // 🌟 ดึงเวลาไทยมาเช็คสำหรับฟังก์ชันปุ่มเลื่อนเดือน
+  const { thYear, thMonth, thDay } = getThailandDateDetails();
+
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
   const prevMonth = () => {
-    const today = new Date();
-    if (year === today.getFullYear() && month === today.getMonth()) return;
+    if (year === thYear && month === thMonth) return;
     setCurrentDate(new Date(year, month - 1, 1));
   };
 
-  const isCurrentMonth = year === new Date().getFullYear() && month === new Date().getMonth();
+  // 🌟 เช็คเดือนปัจจุบันอิงตามเวลาไทย
+  const isCurrentMonth = year === thYear && month === thMonth;
 
   const statusColors = {
     available: 'bg-[#4ADE80] shadow-[0_0_12px_rgba(74,222,128,0.6)]', // Green
@@ -152,7 +177,8 @@ export default function Calendar() {
 
             {days.map(day => {
               const dayData = getDayData(year, month, day, remoteScheduleData);
-              const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year;
+              // 🌟 บังคับตรวจจับ "วันปัจจุบัน (Today)" โดยเทียบตามเวลาไทยครบถ้วน
+              const isToday = thDay === day && thMonth === month && thYear === year;
 
               return (
                 <div key={day} className="aspect-square relative group">
@@ -283,4 +309,3 @@ export default function Calendar() {
     </section>
   );
 }
-
