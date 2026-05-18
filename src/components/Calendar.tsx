@@ -37,7 +37,7 @@ const getDayData = (year: number, month: number, day: number, remoteScheduleData
   }
 
   // ค่าเริ่มต้นสำหรับวันที่ไม่ได้กำหนดใน Google Sheets จะตั้งเป็น "ไม่รับงาน" ทันที
-  return { status: 'unavailable', slots: [] };
+  return { status: 'na' as any, slots: [] };
 };
 
 export default function Calendar() {
@@ -96,10 +96,11 @@ export default function Calendar() {
   // 🌟 เช็คเดือนปัจจุบันอิงตามเวลาไทย
   const isCurrentMonth = year === thYear && month === thMonth;
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     available: 'bg-[#4ADE80] shadow-[0_0_12px_rgba(74,222,128,0.6)]', // Green
     booked: 'bg-[#FB7185] shadow-[0_0_12px_rgba(251,113,133,0.6)]',   // Red
-    unavailable: 'bg-[#D1C7CD] shadow-[0_0_12px_rgba(209,199,205,0.4)]', // Gray
+    unavailable: 'bg-[#FB7185] shadow-[0_0_12px_rgba(251,113,133,0.6)]', // Red (คิวเต็ม)
+    na: 'bg-[#D1C7CD] shadow-[0_0_12px_rgba(209,199,205,0.4)]', // Gray (ไม่รับงาน)
   };
 
   const handleDayClick = (day: number, data: DaySchedule) => {
@@ -155,10 +156,10 @@ export default function Calendar() {
             </div>
             <div className="flex items-center gap-1.5 sm:gap-3 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white/50 border border-white shadow-sm">
               <span className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${statusColors.booked}`} />
-              <span className="text-[10px] sm:text-sm font-medium text-[#7A6A73] whitespace-nowrap">คิวเต็ม (Booked)</span>
+              <span className="text-[10px] sm:text-sm font-medium text-[#7A6A73] whitespace-nowrap">คิวเต็ม (Unavailable)</span>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-3 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white/50 border border-white shadow-sm">
-              <span className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${statusColors.unavailable}`} />
+              <span className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${statusColors.na}`} />
               <span className="text-[10px] sm:text-sm font-medium text-[#7A6A73] whitespace-nowrap">ไม่รับงาน (N/A)</span>
             </div>
           </div>
@@ -223,8 +224,8 @@ export default function Calendar() {
                         </h4>
                         <p className="text-sm font-medium text-[#B0A3A8] mt-1">
                           {selectedDay.data.status === 'available' ? 'มีคิวว่าง (Available)' : 
-                           selectedDay.data.status === 'booked' ? 'คิวเต็มแล้ว (Fully Booked)' : 
-                           'ไม่รับงาน (Unavailable)'}
+                           (selectedDay.data.status === 'booked' || selectedDay.data.status === 'unavailable') ? 'คิวเต็มแล้ว (Fully Booked)' : 
+                           'ไม่รับงาน (N/A)'}
                         </p>
                       </div>
                       <button 
@@ -256,7 +257,7 @@ export default function Calendar() {
                     className="space-y-3 max-h-[210px] overflow-y-auto pr-2 custom-scrollbar overscroll-contain"
                     data-lenis-prevent="true"
                   >
-                    {selectedDay.data.status === 'unavailable' ? (
+                    {selectedDay.data.status === 'na' ? (
                       <div className="text-center py-8">
                         <span className="text-4xl mb-3 block">😴</span>
                         <p className="text-[#9E8E95]">วันนี้ไม่ได้เปิดรับคิวถ่ายรูปค่ะ</p>

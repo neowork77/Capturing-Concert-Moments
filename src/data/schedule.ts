@@ -1,5 +1,5 @@
 export type SlotStatus = 'available' | 'booked';
-export type DayStatus = 'available' | 'booked' | 'unavailable';
+export type DayStatus = 'available' | 'booked' | 'unavailable' | 'na';
 
 export interface TimeSlot {
   time: string;
