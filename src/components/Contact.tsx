@@ -5,8 +5,8 @@ import ScrollReveal from './ScrollReveal';
 export default function Contact() {
   return (
     <section id="contact" className="relative py-12 sm:py-32 px-6 sm:px-8 lg:px-12 max-w-6xl mx-auto">
-      {/* Decorative blob */}
-      <div className="absolute top-0 right-0 w-[400px] h-[400px] rounded-full bg-[#D8CCE8]/[0.08] blur-[120px] pointer-events-none" />
+      {/* Decorative blob — hidden on mobile for GPU perf */}
+      <div className="hidden sm:block absolute top-0 right-0 w-[400px] h-[400px] rounded-full bg-[#D8CCE8]/[0.08] blur-[120px] pointer-events-none" />
 
       <ScrollReveal className="text-center max-w-2xl mx-auto relative z-10">
         <span className="inline-block text-xs font-medium tracking-[0.2em] uppercase text-[#F4A0B5] mb-4">

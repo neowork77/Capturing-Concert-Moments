@@ -60,13 +60,13 @@ export default function Lightbox({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center lightbox-overlay bg-white/95"
+          className="fixed inset-0 z-[100] flex items-center justify-center lightbox-overlay"
           onClick={onClose}
         >
           {/* Close */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10 w-10 h-10 rounded-xl border border-[rgba(0,0,0,0.08)] bg-white/80 backdrop-blur-sm flex items-center justify-center hover:border-[#F4A0B5]/40 transition-colors cursor-pointer shadow-sm"
+            className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10 w-10 h-10 rounded-xl border border-[rgba(0,0,0,0.08)] bg-white/90 flex items-center justify-center hover:border-[#F4A0B5]/40 transition-[border-color] cursor-pointer shadow-sm"
           >
             <svg className="w-4 h-4 text-[#3D3040]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -74,7 +74,7 @@ export default function Lightbox({
           </button>
 
           {/* Counter */}
-          <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-10 px-3 py-1.5 rounded-full border border-[rgba(0,0,0,0.06)] bg-white/80 backdrop-blur-sm shadow-sm">
+          <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-10 px-3 py-1.5 rounded-full border border-[rgba(0,0,0,0.06)] bg-white/90 shadow-sm">
             <span className="text-xs text-[#9E8E95] font-medium tracking-wide">
               {currentIndex + 1} / {totalCount}
             </span>
@@ -83,7 +83,7 @@ export default function Lightbox({
           {/* Prev */}
           <button
             onClick={(e) => { e.stopPropagation(); onPrev(); }}
-            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-xl border border-[rgba(0,0,0,0.08)] bg-white/80 backdrop-blur-sm flex items-center justify-center hover:border-[#F4A0B5]/40 transition-colors cursor-pointer shadow-sm"
+            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-xl border border-[rgba(0,0,0,0.08)] bg-white/90 flex items-center justify-center hover:border-[#F4A0B5]/40 transition-[border-color] cursor-pointer shadow-sm"
           >
             <svg className="w-4 h-4 text-[#3D3040]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -93,7 +93,7 @@ export default function Lightbox({
           {/* Next */}
           <button
             onClick={(e) => { e.stopPropagation(); onNext(); }}
-            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-xl border border-[rgba(0,0,0,0.08)] bg-white/80 backdrop-blur-sm flex items-center justify-center hover:border-[#F4A0B5]/40 transition-colors cursor-pointer shadow-sm"
+            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-xl border border-[rgba(0,0,0,0.08)] bg-white/90 flex items-center justify-center hover:border-[#F4A0B5]/40 transition-[border-color] cursor-pointer shadow-sm"
           >
             <svg className="w-4 h-4 text-[#3D3040]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -128,6 +128,7 @@ export default function Lightbox({
                 className="max-h-[85vh] w-auto h-auto object-contain rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.1)] text-transparent"
                 onLoad={() => setIsLoaded(true)}
                 priority
+                quality={85}
               />
               {/* Photo info */}
               <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6 bg-gradient-to-t from-white/95 to-transparent rounded-b-2xl">

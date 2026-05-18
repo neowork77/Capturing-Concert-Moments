@@ -10,10 +10,10 @@ export default function Hero() {
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Decorative pastel blobs */}
-      <div className="absolute top-20 -left-32 w-[500px] h-[500px] rounded-full bg-[#F4A0B5]/[0.07] blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-20 -right-32 w-[400px] h-[400px] rounded-full bg-[#D8CCE8]/[0.1] blur-[120px] pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#C5E8D8]/[0.06] blur-[150px] pointer-events-none" />
+      {/* Decorative pastel blobs — hidden on mobile for GPU perf */}
+      <div className="hidden sm:block absolute top-20 -left-32 w-[500px] h-[500px] rounded-full bg-[#F4A0B5]/[0.07] blur-[120px] pointer-events-none" />
+      <div className="hidden sm:block absolute bottom-20 -right-32 w-[400px] h-[400px] rounded-full bg-[#D8CCE8]/[0.1] blur-[120px] pointer-events-none" />
+      <div className="hidden sm:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#C5E8D8]/[0.06] blur-[150px] pointer-events-none" />
 
       <div className="relative z-10 text-center px-6 sm:px-8 max-w-3xl mx-auto">
         {/* Status badge */}

@@ -108,9 +108,9 @@ export default function Calendar() {
 
   return (
     <section id="calendar" className="relative py-12 sm:py-32 px-6 sm:px-8 lg:px-12 max-w-5xl mx-auto">
-      {/* Decorative blobs */}
-      <div className="absolute top-20 left-0 w-[300px] h-[300px] rounded-full bg-[#F4A0B5]/[0.08] blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-20 right-0 w-[300px] h-[300px] rounded-full bg-[#D8CCE8]/[0.08] blur-[100px] pointer-events-none" />
+      {/* Decorative blobs — hidden on mobile for GPU perf */}
+      <div className="hidden sm:block absolute top-20 left-0 w-[300px] h-[300px] rounded-full bg-[#F4A0B5]/[0.08] blur-[100px] pointer-events-none" />
+      <div className="hidden sm:block absolute bottom-20 right-0 w-[300px] h-[300px] rounded-full bg-[#D8CCE8]/[0.08] blur-[100px] pointer-events-none" />
 
       <ScrollReveal className="text-center max-w-2xl mx-auto relative z-10 mb-12 sm:mb-16">
         <span className="inline-block text-xs font-medium tracking-[0.2em] uppercase text-[#F4A0B5] mb-4">
@@ -125,7 +125,7 @@ export default function Calendar() {
       </ScrollReveal>
 
       <ScrollReveal delay={0.15} className="relative z-10">
-        <div className="p-6 sm:p-10 lg:p-12 rounded-[2.5rem] bg-white/80 backdrop-blur-xl border border-[rgba(244,160,181,0.15)] shadow-[0_20px_80px_rgba(216,204,232,0.25)] relative">
+        <div className="p-6 sm:p-10 lg:p-12 rounded-[2.5rem] bg-white/95 sm:bg-white/80 sm:backdrop-blur-xl border border-[rgba(244,160,181,0.15)] shadow-[0_20px_80px_rgba(216,204,232,0.25)] relative">
           
           {/* Header */}
           <div className="flex items-center justify-between mb-8 sm:mb-10">
@@ -204,7 +204,7 @@ export default function Calendar() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-white/60 backdrop-blur-md rounded-[2.5rem]"
+                className="absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-white/90 sm:bg-white/60 sm:backdrop-blur-md rounded-[2.5rem]"
                 onClick={() => setSelectedDay(null)}
               >
                 <motion.div 
