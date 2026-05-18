@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { DaySchedule, TimeSlot, DayStatus, SlotStatus } from '@/data/schedule';
+import fs from 'fs';
+import path from 'path';
 
 // 1. สร้างลิสต์ช่วงเวลาทั้งหมด ตั้งแต่ 11:00 ถึง 17:50 (รอบละ 20 นาที พัก 10 นาที)
 const TIME_SLOTS = [
@@ -12,11 +14,24 @@ const TIME_SLOTS = [
 
 export async function GET() {
   try {
+    let authCredentials;
+
+    // ตรวจสอบว่ามีตัวแปร Environment (Vercel) หรือไม่
+    if (process.env.GOOGLE_CREDENTIALS_JSON) {
+      authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+    } else {
+      // ถ้าไม่มี (รันเทสบน Local) ให้วิ่งหาไฟล์ในโฟลเดอร์หลัก (Root) ของโปรเจกต์
+      const localKeyPath = path.join(process.cwd(), 'google-credentials.json');
+      if (fs.existsSync(localKeyPath)) {
+        authCredentials = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
+      } else {
+        console.warn("⚠️ ไม่พบไฟล์ google-credentials.json ในเครื่อง (ข้ามถ้าคุณไม่ได้กำลังเทสระบบ Local)");
+      }
+    }
+
     // กำหนดการตรวจสอบสิทธิ์
     const auth = new google.auth.GoogleAuth({
-      credentials: process.env.GOOGLE_CREDENTIALS_JSON
-        ? JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON)
-        : require('../../../../../google-credentials.json'), // ชี้กลับไปหาไฟล์ในคอมเวลาเทส Local (พิมพ์ ../ ให้ตรงตำแหน่งโฟลเดอร์น้านะครับ)
+      credentials: authCredentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
