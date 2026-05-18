@@ -14,7 +14,15 @@ export async function GET() {
     let authCredentials;
     if (process.env.GOOGLE_CREDENTIALS_JSON) {
       // บน Vercel: แกะรหัสข้อความบรรทัดเดียวออกมาใช้งาน
-      authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+      try {
+        authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+        if (authCredentials.private_key) {
+          authCredentials.private_key = authCredentials.private_key.replace(/\\n/g, '\n');
+        }
+      } catch (e: any) {
+        console.error("⚠️ Error parsing GOOGLE_CREDENTIALS_JSON:", e.message);
+        throw new Error("Invalid GOOGLE_CREDENTIALS_JSON format");
+      }
     } else {
       // ในคอมของน้า: แอบไปดึงไฟล์ json ในเครื่องมาใช้ตอนเทส local
       authCredentials = require('../../../../google-credentials.json'); 

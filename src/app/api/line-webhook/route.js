@@ -47,16 +47,24 @@ export async function POST(req) {
       const userMessage = event.message.text.trim();
       const replyToken = event.replyToken;
 
-      // บอทจะทำงานเมื่อมีคำว่า ตาราง / เช็คตาราง / ว่าง เท่านั้น
-      if (/สนใจจองคิว/.test(userMessage)) {
+      // บอทจะทำงานเมื่อมีคำว่า ตาราง / เช็คตาราง / ว่าง / สนใจจองคิว
+      if (/(ตาราง|เช็คตาราง|ว่าง|สนใจจองคิว)/.test(userMessage)) {
 
         let authCredentials;
         if (process.env.GOOGLE_CREDENTIALS_JSON) {
           // บน Vercel: แกะรหัสข้อความบรรทัดเดียวออกมาใช้งาน
-          authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+          try {
+            authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+            if (authCredentials.private_key) {
+              authCredentials.private_key = authCredentials.private_key.replace(/\\n/g, '\n');
+            }
+          } catch (e) {
+            console.error("⚠️ Error parsing GOOGLE_CREDENTIALS_JSON:", e.message);
+            throw new Error("Invalid GOOGLE_CREDENTIALS_JSON format");
+          }
         } else {
           // ในคอมของน้า: แอบไปดึงไฟล์ json ในเครื่องมาใช้ตอนเทส local
-          authCredentials = require('../../../../../google-credentials.json'); 
+          authCredentials = require('../../../../google-credentials.json'); 
         }
 
         const auth = new google.auth.GoogleAuth({
@@ -66,6 +74,11 @@ export async function POST(req) {
 
         const sheets = google.sheets({ version: 'v4', auth });
         const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+        
+        if (!spreadsheetId) {
+          console.warn('⚠️ ไม่พบ GOOGLE_SHEET_ID ใน Environment Variables');
+          throw new Error('Missing GOOGLE_SHEET_ID');
+        }
 
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId,
@@ -119,7 +132,7 @@ export async function POST(req) {
 
     return NextResponse.json({ message: 'OK' }, { status: 200 });
   } catch (error) {
-    console.error('LINE Webhook Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error('❌ LINE Webhook Error:', error.message || error);
+    return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
   }
 }
