@@ -14,12 +14,14 @@ export async function GET() {
   try {
     // กำหนดการตรวจสอบสิทธิ์
     const auth = new google.auth.GoogleAuth({
-      keyFile: 'google-credentials.json',
+      credentials: process.env.GOOGLE_CREDENTIALS_JSON
+        ? JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON)
+        : require('../../../../../google-credentials.json'), // ชี้กลับไปหาไฟล์ในคอมเวลาเทส Local (พิมพ์ ../ ให้ตรงตำแหน่งโฟลเดอร์น้านะครับ)
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // ดึง Spreadsheet ID จาก Environment Variables
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
@@ -31,7 +33,7 @@ export async function GET() {
     // 2. ขยายช่วงดึงข้อมูลไปถึงคอลัมน์ R (4 คอลัมน์แรก + 14 สล็อต = 18 คอลัมน์)
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Sheet1!A2:R', 
+      range: 'Sheet1!A2:R',
     });
 
     const rows = response.data.values;
@@ -43,17 +45,17 @@ export async function GET() {
         const statusStr = row[1];    // คอลัมน์ B
         const eventName = row[2];    // คอลัมน์ C
         const location = row[3];     // คอลัมน์ D
-        
+
         if (!date) return;
 
         const status = (statusStr?.toLowerCase().trim() || 'unavailable') as DayStatus;
-        
+
         // 3. จับคู่เวลามาตรฐานกับคอลัมน์ใน Google Sheets ตามลำดับ
         const slots: TimeSlot[] = TIME_SLOTS.map((timeLabel, index) => {
           // ข้อมูลสล็อตเวลาจะเริ่มที่คอลัมน์ E ซึ่งตรงกับ index ที่ 4 ของ row
-          const columnIndex = 4 + index; 
+          const columnIndex = 4 + index;
           const slotStatusStr = row[columnIndex];
-          
+
           return {
             time: timeLabel,
             // ถ้าปล่อยช่องใน Sheets ว่างไว้ (ไม่เลือก dropdown) จะถือว่า available ทันที

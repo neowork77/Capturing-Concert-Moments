@@ -49,17 +49,20 @@ export async function POST(req) {
 
       // บอทจะทำงานเมื่อมีคำว่า ตาราง / เช็คตาราง / ว่าง เท่านั้น
       if (/สนใจจองคิว/.test(userMessage)) {
-        
+
         const auth = new google.auth.GoogleAuth({
-          keyFile: 'google-credentials.json',
+          credentials: process.env.GOOGLE_CREDENTIALS_JSON
+            ? JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON)
+            : require('../../../../../google-credentials.json'),
           scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
         });
+
         const sheets = google.sheets({ version: 'v4', auth });
         const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId,
-          range: 'Sheet1!A2:R', 
+          range: 'Sheet1!A2:R',
         });
 
         const rows = response.data.values;
@@ -71,12 +74,12 @@ export async function POST(req) {
             const statusStr = row[1];           // คอลัมน์ B : สถานะเปิด/ปิดรับคิว
             const eventName = row[2] || '-';    // คอลัมน์ C : งาน
             const locationName = row[3] || '-'; // คอลัมน์ D : สถานที่
-            
+
             if (!date) return;
 
             const dayStatus = statusStr?.toLowerCase().trim() || 'unavailable';
             const statusIcon = dayStatus === 'available' ? '🟢 เปิดรับคิว' : '🔴 งดรับคิว';
-            
+
             replyText += `━━━━━━━━━━━━━━\n`;
             replyText += `📆 วันที่: ${date}\n`;
             replyText += `🎪 งาน: ${eventName}\n`;
@@ -86,7 +89,7 @@ export async function POST(req) {
             if (dayStatus === 'available') {
               replyText += `\n⏰ รอบเวลา:\n`;
               TIME_SLOTS.forEach((timeLabel, index) => {
-                const columnIndex = 4 + index; 
+                const columnIndex = 4 + index;
                 const slotStatusStr = row[columnIndex];
                 const slotStatus = slotStatusStr?.trim().toLowerCase() || 'available';
 
@@ -97,7 +100,7 @@ export async function POST(req) {
                 }
               });
             }
-            replyText += `\n`; 
+            replyText += `\n`;
           });
         } else {
           replyText = "⚠️ ขออภัยค่ะ ตอนนี้ยังไม่มีข้อมูลตารางเวลาอัปเดตในระบบค่ะ";
