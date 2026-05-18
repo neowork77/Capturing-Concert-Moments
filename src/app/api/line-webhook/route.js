@@ -50,10 +50,17 @@ export async function POST(req) {
       // บอทจะทำงานเมื่อมีคำว่า ตาราง / เช็คตาราง / ว่าง เท่านั้น
       if (/สนใจจองคิว/.test(userMessage)) {
 
+        let authCredentials;
+        if (process.env.GOOGLE_CREDENTIALS_JSON) {
+          // บน Vercel: แกะรหัสข้อความบรรทัดเดียวออกมาใช้งาน
+          authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+        } else {
+          // ในคอมของน้า: แอบไปดึงไฟล์ json ในเครื่องมาใช้ตอนเทส local
+          authCredentials = require('../../../../../google-credentials.json'); 
+        }
+
         const auth = new google.auth.GoogleAuth({
-          credentials: process.env.GOOGLE_CREDENTIALS_JSON
-            ? JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON)
-            : require('../../../../../google-credentials.json'),
+          credentials: authCredentials,
           scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
         });
 
