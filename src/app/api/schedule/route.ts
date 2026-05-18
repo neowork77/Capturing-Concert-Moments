@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { DaySchedule, TimeSlot, DayStatus, SlotStatus } from '@/data/schedule';
-import fs from 'fs';
-import path from 'path';
 
 const TIME_SLOTS = [
   "11:00-11:20", "11:30-11:50",
@@ -14,30 +12,12 @@ const TIME_SLOTS = [
 export async function GET() {
   try {
     let authCredentials;
-
-    // 1. แปลง Credentials อย่างปลอดภัยและจัดการกับ Error
     if (process.env.GOOGLE_CREDENTIALS_JSON) {
-      try {
-        authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
-        // แก้ไขปัญหา Vercel ดัดแปลง \n ใน private key
-        if (authCredentials.private_key) {
-          authCredentials.private_key = authCredentials.private_key.replace(/\\n/g, '\n');
-        }
-      } catch (parseError) {
-        console.error("❌ แปลง GOOGLE_CREDENTIALS_JSON ไม่สำเร็จ:", parseError);
-        return NextResponse.json({ error: 'รูปแบบ Google Credentials ไม่ถูกต้อง (JSON Parse Error)' }, { status: 500 });
-      }
+      // บน Vercel: แกะรหัสข้อความบรรทัดเดียวออกมาใช้งาน
+      authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
     } else {
-      const localKeyPath = path.join(process.cwd(), 'google-credentials.json');
-      if (fs.existsSync(localKeyPath)) {
-        authCredentials = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
-      }
-    }
-
-    // 2. ถ้าไม่มี Credentials เลยให้ดัก Error ทันที
-    if (!authCredentials) {
-      console.error('❌ ไม่พบ Google Credentials ตรวจสอบการตั้งค่า Environment Variables ใน Vercel');
-      return NextResponse.json({ error: 'Server configuration error: Missing credentials' }, { status: 500 });
+      // ในคอมของน้า: แอบไปดึงไฟล์ json ในเครื่องมาใช้ตอนเทส local
+      authCredentials = require('../../../../google-credentials.json'); 
     }
 
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
@@ -46,7 +26,6 @@ export async function GET() {
       return NextResponse.json({}, { status: 200 }); 
     }
 
-    // 3. เริ่มต้น Google Auth
     const auth = new google.auth.GoogleAuth({
       credentials: authCredentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],

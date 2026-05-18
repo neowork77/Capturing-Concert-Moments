@@ -123,6 +123,9 @@ export default function Gallery() {
               photo={photo}
               index={index}
               onClick={() => openLightbox(index)}
+              priority={index < 2}
+              loading={index < 3 ? 'eager' : 'lazy'}
+              sizes="85vw"
             />
           </div>
         ))}
@@ -136,6 +139,9 @@ export default function Gallery() {
             photo={photo}
             index={index}
             onClick={() => openLightbox(index)}
+            priority={index < 4}
+            loading={index < 6 ? 'eager' : 'lazy'}
+            sizes="(min-width: 1024px) 33vw, 50vw"
           />
         ))}
       </div>

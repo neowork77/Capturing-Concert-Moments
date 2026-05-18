@@ -8,9 +8,12 @@ interface PhotoCardProps {
   photo: Photo;
   index: number;
   onClick: () => void;
+  priority?: boolean;
+  loading?: 'eager' | 'lazy';
+  sizes?: string;
 }
 
-export default function PhotoCard({ photo, index, onClick }: PhotoCardProps) {
+export default function PhotoCard({ photo, index, onClick, priority = false, loading, sizes }: PhotoCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -29,16 +32,16 @@ export default function PhotoCard({ photo, index, onClick }: PhotoCardProps) {
             alt={photo.alt}
             width={photo.width}
             height={photo.height}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            sizes={sizes ?? "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"}
             className="w-full h-auto object-cover transform group-hover:scale-[1.03] transition-transform duration-700 ease-out"
-            loading={index < 4 ? 'eager' : 'lazy'}
+            priority={priority}
+            loading={priority ? undefined : (loading ?? (index < 4 ? 'eager' : 'lazy'))}
           />
           {/* Hover Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-white/80 via-white/5 via-40% to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           {/* Info overlay */}
           <div className="absolute inset-0 flex flex-col justify-end p-5 sm:p-6 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
             <div className="space-y-1">
-              {/* เปลี่ยนเป็นสีดำ */}
               <p className="text-xs sm:text-sm text-black font-light">{photo.event}</p>
               <p className="text-xs text-black mt-1">{new Date(photo.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
             </div>
