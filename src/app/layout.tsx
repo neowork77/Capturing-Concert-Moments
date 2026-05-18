@@ -19,18 +19,15 @@ import SmoothScrolling from '@/components/SmoothScrolling';
 export const metadata: Metadata = {
   title: 'watashiwajp — รับถ่ายรูปหน้าคอนเสิร์ต',
   description:
-    'Capturing the energy, emotion, and electricity of live performances. Concert & festival photography portfolio showcasing vibrant stage moments.',
+    'รับถ่ายรูปหน้าคอนเสิร์ต พอร์ตเทรต และงานอีเวนต์ต่างๆ บันทึกความทรงจำและทุกช่วงเวลา (Concert & Portrait Photography)',
   keywords: [
-    'concert photography',
-    'music photography',
-    'festival photographer',
-    'live music',
-    'stage photography',
-    'portrait photography',
+    'รับถ่ายรูป',
+    'ถ่ายรูปหน้าคอนเสิร์ต',
+    'ช่างภาพพอร์ตเทรต',
   ],
   openGraph: {
-    title: 'StageLens — Concert Photography Portfolio',
-    description: 'Capturing the energy, emotion, and electricity of live performances.',
+    title: 'watashiwajp — รับถ่ายรูปหน้าคอนเสิร์ต',
+    description: 'รับถ่ายรูปหน้าคอนเสิร์ต พอร์ตเทรต และงานอีเวนต์ต่างๆ บันทึกความทรงจำและทุกช่วงเวลาสำคัญ',
     type: 'website',
   },
 };

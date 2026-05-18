@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Concert Photography Portfolio
 
-## Getting Started
+A vibrant, modern, and responsive photography portfolio website tailored for portrait and concert photography. Built with a "Pastel Minimalist" aesthetic, this project highlights photography work with clean, high-performance UI components, smooth scroll-triggered animations, and an intuitive lightbox gallery.
 
-First, run the development server:
+## ✨ Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Pastel Minimalist UI:** A warm, light color palette with soft whites, pinks, and lavenders, rounded shapes, and gentle shadows.
+- **Smooth Animations:** Powered by [Framer Motion](https://www.framer.com/motion/) and [Lenis](https://github.com/darkroomengineering/lenis) for a seamless scrolling experience and scroll-reveal effects.
+- **Interactive Gallery:** Responsive photo grid with pagination and a fully functional lightbox for viewing high-resolution images.
+- **Dynamic Scheduling System:** An interactive calendar component that pulls availability and schedule data from a Google Sheets document.
+- **LINE Integration:** Includes a LINE webhook endpoint to provide a read-only scheduling information service directly to LINE users.
+- **Responsive Design:** Optimized for mobile, tablet, and desktop viewports, ensuring a premium user experience across all devices.
+
+## 🛠️ Tech Stack
+
+- **Framework:** [Next.js](https://nextjs.org/) (App Router)
+- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
+- **Animations:** [Framer Motion](https://www.framer.com/motion/)
+- **API Integration:** [Google APIs](https://github.com/googleapis/google-api-nodejs-client) (Google Sheets API for scheduling)
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js (v18 or higher)
+- npm, yarn, pnpm, or bun
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone <your-repo-url>
+   cd concert-portfolio
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   # or yarn install / pnpm install / bun install
+   ```
+
+3. **Configure Environment Variables:**
+   Create a `.env.local` file in the root directory and add the necessary environment variables for the Google Sheets API and LINE integration (see [Environment Variables](#-environment-variables) below).
+
+4. **Run the development server:**
+   ```bash
+   npm run dev
+   ```
+
+5. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+## 🔐 Environment Variables
+
+To enable the scheduling and LINE webhook features, you need to set up the following environment variables in your `.env.local` (or in your Vercel project settings for production):
+
+```env
+# Google Sheets API Configuration
+GOOGLE_SHEET_ID=your_google_sheet_id_here
+GOOGLE_CREDENTIALS_JSON=your_minified_google_service_account_json_here
+
+# LINE Webhook Configuration (Optional, if using LINE integration)
+LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token_here
+LINE_CHANNEL_SECRET=your_line_channel_secret_here
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+*(Note: For local development, the project might also check for a local `google-credentials.json` file).*
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📂 Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `src/app/`: Next.js App Router pages and API routes (`/api/schedule`, `/api/line-webhook`).
+- `src/components/`: Reusable React components (`Hero`, `Gallery`, `Calendar`, `Packages`, `Contact`, `Lightbox`, etc.).
+- `src/data/`: Static data files (e.g., photo data and references to local assets).
+- `src/assets/`: Local image assets for the portfolio.
 
-## Learn More
+## 🌐 API Routes
 
-To learn more about Next.js, take a look at the following resources:
+- `GET /api/schedule`: Fetches and processes schedule data from the connected Google Sheet to populate the frontend Calendar component.
+- `POST /api/line-webhook`: Processes incoming messages from LINE users and replies with scheduling information pulled from Google Sheets.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🚀 Deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The easiest way to deploy this Next.js app is to use the [Vercel Platform](https://vercel.com/). Ensure that you add your environment variables to the Vercel project settings before deploying, specifically stringifying your `GOOGLE_CREDENTIALS_JSON` correctly.
