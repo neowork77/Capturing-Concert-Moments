@@ -7,6 +7,12 @@ export default function SmoothScrolling({ children }: { children: React.ReactNod
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    // Force scroll to top on initial load
+    if (typeof window !== 'undefined') {
+      window.history.scrollRestoration = 'manual';
+      window.scrollTo(0, 0);
+    }
+    
     // Detect mobile/touch devices — disable Lenis on them for native scroll performance
     const checkMobile = () => {
       const mobile = window.innerWidth < 768 || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
