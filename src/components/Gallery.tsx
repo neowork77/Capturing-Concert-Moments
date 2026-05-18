@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { photos, Photo } from '@/data/photos';
 import PhotoCard from './PhotoCard';
 import Lightbox from './Lightbox';
@@ -11,6 +11,13 @@ const PHOTOS_PER_PAGE = 12;
 export default function Gallery() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [lightboxIndex, setLightboxIndex] = useState<number>(-1);
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (mobileScrollRef.current) {
+      mobileScrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  }, [currentPage]);
 
   const totalPages = Math.max(1, Math.ceil(photos.length / PHOTOS_PER_PAGE));
 
@@ -116,7 +123,10 @@ export default function Gallery() {
       )}
 
       {/* Mobile: Horizontal Swipe */}
-      <div className="flex sm:hidden overflow-x-auto snap-x snap-mandatory gap-4 pb-8 -mx-6 px-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <div 
+        ref={mobileScrollRef}
+        className="flex sm:hidden overflow-x-auto snap-x snap-mandatory gap-4 pb-8 -mx-6 px-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+      >
         {paginatedPhotos.map((photo, index) => (
           <div key={`mobile-${photo.id}`} className="w-[85vw] shrink-0 snap-center">
             <PhotoCard
