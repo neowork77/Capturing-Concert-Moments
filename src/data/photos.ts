@@ -32,6 +32,8 @@ import img30 from '../assets/optimized/gallery-30.webp';
 import img31 from '../assets/optimized/gallery-31.webp';
 import img32 from '../assets/optimized/gallery-32.webp';
 
+import photosDataJson from './photos-data.json';
+
 export interface Photo {
   id: string;
   src: string;
@@ -46,51 +48,95 @@ export interface Photo {
   accentColor: 'pink' | 'cyan' | 'lime' | 'purple' | 'orange';
 }
 
-const colors: ('pink' | 'cyan' | 'lime' | 'purple' | 'orange')[] = ['pink', 'cyan', 'lime', 'purple', 'orange'];
-const photoData = [
-  { img: img1, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue 1', date: '2026-05-18' },
-  { img: img2, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue 2', date: '2026-05-18' },
-  { img: img3, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue 3', date: '2026-05-18' },
-  { img: img4, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img5, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img6, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img7, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img8, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img9, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img10, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img11, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img12, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img13, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img14, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img15, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img16, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img17, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img18, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img19, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img20, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img21, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img22, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img23, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img24, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img25, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img26, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img27, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img29, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img30, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img31, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-  { img: img32, artist: 'Artist Name', event: 'EXO PLANET #6 - EXhOrizon in BANGKOK', venue: 'Venue', date: '2026-05-18' },
-];
+export interface PhotoData {
+  id: string;
+  imgKey: string;
+  artist: string;
+  event: string;
+  venue: string;
+  date: string;
+  deleted: boolean;
+}
 
-export const photos: Photo[] = photoData.map((data, i: number) => ({
-  id: `${i + 1}`,
-  src: data.img.src,
-  alt: `Concert photo ${i + 1}`,
-  artist: data.artist,
-  event: data.event,
-  venue: data.venue,
-  date: data.date,
-  width: data.img.width,
-  height: data.img.height,
-  blurDataURL: data.img.blurDataURL,
-  accentColor: colors[i % colors.length],
-}));
+const colors: ('pink' | 'cyan' | 'lime' | 'purple' | 'orange')[] = ['pink', 'cyan', 'lime', 'purple', 'orange'];
+
+// Map imgKey strings to actual imported images
+const imageMap: Record<string, StaticImageData> = {
+  img1, img2, img3, img4, img5, img6, img7, img8, img9, img10,
+  img11, img12, img13, img14, img15, img16, img17, img18, img19, img20,
+  img21, img22, img23, img24, img25, img26, img27,
+  img29, img30, img31, img32,
+};
+
+// Build all photos (including deleted) for admin usage
+export const allPhotos: Photo[] = (photosDataJson.photos as PhotoData[])
+  .map((data, i) => {
+    let src = '';
+    let width = 1200;
+    let height = 800;
+    let blurDataURL: string | undefined = undefined;
+
+    if (data.imgKey.startsWith('http://') || data.imgKey.startsWith('https://')) {
+      src = data.imgKey;
+    } else {
+      const img = imageMap[data.imgKey];
+      if (!img) return null;
+      src = img.src;
+      width = img.width;
+      height = img.height;
+      blurDataURL = img.blurDataURL;
+    }
+
+    const photo: Photo = {
+      id: data.id,
+      src,
+      alt: `Concert photo ${data.id}`,
+      artist: data.artist,
+      event: data.event,
+      venue: data.venue,
+      date: data.date,
+      width,
+      height,
+      blurDataURL,
+      accentColor: colors[i % colors.length],
+    };
+    return photo;
+  })
+  .filter((p): p is Photo => p !== null);
+
+// Only non-deleted photos for the public gallery
+export const photos: Photo[] = (photosDataJson.photos as PhotoData[])
+  .filter((d) => !d.deleted)
+  .map((data, i) => {
+    let src = '';
+    let width = 1200;
+    let height = 800;
+    let blurDataURL: string | undefined = undefined;
+
+    if (data.imgKey.startsWith('http://') || data.imgKey.startsWith('https://')) {
+      src = data.imgKey;
+    } else {
+      const img = imageMap[data.imgKey];
+      if (!img) return null;
+      src = img.src;
+      width = img.width;
+      height = img.height;
+      blurDataURL = img.blurDataURL;
+    }
+
+    const photo: Photo = {
+      id: data.id,
+      src,
+      alt: `Concert photo ${data.id}`,
+      artist: data.artist,
+      event: data.event,
+      venue: data.venue,
+      date: data.date,
+      width,
+      height,
+      blurDataURL,
+      accentColor: colors[i % colors.length],
+    };
+    return photo;
+  })
+  .filter((p): p is Photo => p !== null);
