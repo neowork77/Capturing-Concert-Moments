@@ -9,7 +9,7 @@ export default function proxy(req: NextRequest) {
     const [user, pwd] = atob(authValue).split(':');
 
     const adminUser = process.env.ADMIN_USERNAME || 'admin';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'password123';
+    const adminPassword = process.env.ADMIN_PASSWORD || '010400';
 
     if (user === adminUser && pwd === adminPassword) {
       return NextResponse.next();

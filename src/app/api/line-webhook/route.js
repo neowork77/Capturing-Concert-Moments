@@ -31,6 +31,7 @@ async function replyToLine(replyToken, messageObject) {
 // ฟังก์ชันดึงข้อมูลจาก Google Sheets
 async function getGoogleSheetData() {
   let authCredentials;
+
   if (process.env.GOOGLE_CREDENTIALS_JSON) {
     try {
       authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
@@ -42,7 +43,30 @@ async function getGoogleSheetData() {
       throw new Error("Invalid GOOGLE_CREDENTIALS_JSON format");
     }
   } else {
-    authCredentials = require('../../../../google-credentials.json');
+    // 🌟 แก้ไข: ใช้ fs และ path ของ Node.js เพื่อหลบเลี่ยงไม่ให้ Next.js บลบล็อกตอน Build
+    try {
+      const fs = require('fs');
+      const path = require('path');
+
+      // ลองหาไฟล์ตรงโฟลเดอร์หลักนอกสุดของโปรเจกต์ก่อน (Root Project)
+      let filePath = path.resolve(process.cwd(), './google-credentials.json');
+
+      // ถ้าหาไม่เจอ ให้ถอยพาร์ทย้อนกลับไป 4 ชั้นตามตำแหน่งเดิมในคอมของคุณ
+      if (!fs.existsSync(filePath)) {
+        filePath = path.resolve(__dirname, '../../../../google-credentials.json');
+      }
+
+      if (fs.existsSync(filePath)) {
+        const fileData = fs.readFileSync(filePath, 'utf8');
+        authCredentials = JSON.parse(fileData);
+      } else {
+        console.error("⚠️ ไม่พบไฟล์ google-credentials.json ในเครื่องของคุณ");
+        throw new Error("Credentials file not found on local machine");
+      }
+    } catch (err) {
+      console.error("⚠️ เกิดข้อผิดพลาดในการโหลดคีย์บนเครื่อง Local:", err.message);
+      throw new Error("Missing Google Credentials Configuration");
+    }
   }
 
   const auth = new google.auth.GoogleAuth({
