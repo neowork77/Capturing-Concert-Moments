@@ -8,8 +8,8 @@ const TIME_SLOTS = [
   "16:00-16:20", "16:30-16:50", "17:00-17:20", "17:30-17:50"
 ];
 
-// ฟังก์ชันส่งข้อความตอบกลับหา LINE ลูกค้า
-async function replyToLine(replyToken, textMessage) {
+// ฟังก์ชันส่งข้อความตอบกลับหา LINE ลูกค้า (รองรับ Flex Message)
+async function replyToLine(replyToken, messageObject) {
   const response = await fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'POST',
     headers: {
@@ -18,7 +18,7 @@ async function replyToLine(replyToken, textMessage) {
     },
     body: JSON.stringify({
       replyToken: replyToken,
-      messages: [{ type: 'text', text: textMessage }],
+      messages: Array.isArray(messageObject) ? messageObject : [messageObject],
     }),
   });
 
@@ -26,6 +26,43 @@ async function replyToLine(replyToken, textMessage) {
     const errorData = await response.text();
     console.error("❌ LINE Reply Error !! :", errorData);
   }
+}
+
+// ฟังก์ชันดึงข้อมูลจาก Google Sheets
+async function getGoogleSheetData() {
+  let authCredentials;
+  if (process.env.GOOGLE_CREDENTIALS_JSON) {
+    try {
+      authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+      if (authCredentials.private_key) {
+        authCredentials.private_key = authCredentials.private_key.replace(/\\n/g, '\n');
+      }
+    } catch (e) {
+      console.error("⚠️ Error parsing GOOGLE_CREDENTIALS_JSON:", e.message);
+      throw new Error("Invalid GOOGLE_CREDENTIALS_JSON format");
+    }
+  } else {
+    authCredentials = require('../../../../google-credentials.json');
+  }
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: authCredentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  });
+
+  const sheets = google.sheets({ version: 'v4', auth });
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+  if (!spreadsheetId) {
+    throw new Error('Missing GOOGLE_SHEET_ID');
+  }
+
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: 'Sheet1!A2:R',
+  });
+
+  return response.data.values || [];
 }
 
 export async function POST(req) {
@@ -43,90 +80,174 @@ export async function POST(req) {
 
     const event = body.events[0];
 
+    // ป้องกันระบบค้างเมื่อ LINE ส่ง Webhook จำลองมาเปิดระบบ Verify
+    if (event.replyToken === "00000000000000000000000000000000" || event.replyToken === "ffffffffffffffffffffffffffffffff") {
+      return NextResponse.json({ message: 'Verify Success' }, { status: 200 });
+    }
+
     if (event && event.type === 'message' && event.message.type === 'text') {
       const userMessage = event.message.text.trim();
       const replyToken = event.replyToken;
 
-      // บอทจะทำงานเมื่อมีคำว่า ตาราง / เช็คตาราง / ว่าง / สนใจจองคิว
-      if (/(ตาราง|เช็คตาราง|ว่าง|สนใจจองคิว)/.test(userMessage)) {
+      // ------------------------------------------------------------
+      // STEP 1: แสดงรายการ Event เป็น "การ์ดสไลด์สวยๆ (Flex Message)"
+      // ------------------------------------------------------------
+      if (/(สนใจจองคิว)/.test(userMessage) && !userMessage.startsWith("[ดูคิว]")) {
 
-        let authCredentials;
-        if (process.env.GOOGLE_CREDENTIALS_JSON) {
-          // บน Vercel: แกะรหัสข้อความบรรทัดเดียวออกมาใช้งาน
-          try {
-            authCredentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
-            if (authCredentials.private_key) {
-              authCredentials.private_key = authCredentials.private_key.replace(/\\n/g, '\n');
-            }
-          } catch (e) {
-            console.error("⚠️ Error parsing GOOGLE_CREDENTIALS_JSON:", e.message);
-            throw new Error("Invalid GOOGLE_CREDENTIALS_JSON format");
-          }
-        } else {
-          // ในคอมของน้า: แอบไปดึงไฟล์ json ในเครื่องมาใช้ตอนเทส local
-          authCredentials = require('../../../../google-credentials.json'); 
-        }
+        const rows = await getGoogleSheetData();
 
-        const auth = new google.auth.GoogleAuth({
-          credentials: authCredentials,
-          scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-        });
+        // กรองเอาเฉพาะแถวที่มีสถานะเป็น available 
+        const availableEvents = rows.filter(row => row[1]?.toLowerCase().trim() === 'available');
 
-        const sheets = google.sheets({ version: 'v4', auth });
-        const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-        
-        if (!spreadsheetId) {
-          console.warn('⚠️ ไม่พบ GOOGLE_SHEET_ID ใน Environment Variables');
-          throw new Error('Missing GOOGLE_SHEET_ID');
-        }
-
-        const response = await sheets.spreadsheets.values.get({
-          spreadsheetId,
-          range: 'Sheet1!A2:R',
-        });
-
-        const rows = response.data.values;
-        let replyText = "✨ 📅 อัปเดตตารางคิวล่าสุดค่ะ ✨\n\n";
-
-        if (rows && rows.length > 0) {
-          rows.forEach((row) => {
-            const date = row[0];                // คอลัมน์ A : วันที่
-            const statusStr = row[1];           // คอลัมน์ B : สถานะเปิด/ปิดรับคิว
-            const eventName = row[2] || '-';    // คอลัมน์ C : งาน
-            const locationName = row[3] || '-'; // คอลัมน์ D : สถานที่
-
-            if (!date) return;
-
-            const dayStatus = statusStr?.toLowerCase().trim() || 'unavailable';
-            const statusIcon = dayStatus === 'available' ? '🟢 เปิดรับคิว' : '🔴 งดรับคิว';
-
-            replyText += `━━━━━━━━━━━━━━\n`;
-            replyText += `📆 วันที่: ${date}\n`;
-            replyText += `🎪 งาน: ${eventName}\n`;
-            replyText += `📍 สถานที่: ${locationName}\n`;
-            replyText += `🏷️ สถานะ: ${statusIcon}\n`;
-
-            if (dayStatus === 'available') {
-              replyText += `\n⏰ รอบเวลา:\n`;
-              TIME_SLOTS.forEach((timeLabel, index) => {
-                const columnIndex = 4 + index;
-                const slotStatusStr = row[columnIndex];
-                const slotStatus = slotStatusStr?.trim().toLowerCase() || 'available';
-
-                if (slotStatus === 'available') {
-                  replyText += `  ✅ ${timeLabel} (ว่าง)\n`;
-                } else {
-                  replyText += `  ❌ ${timeLabel} (เต็ม)\n`;
-                }
-              });
-            }
-            replyText += `\n`;
+        if (availableEvents.length === 0) {
+          await replyToLine(replyToken, {
+            type: 'text',
+            text: "⚠️ ขออภัยค่ะ ตอนนี้ยังไม่มีข้อมูลงานที่เปิดรับคิวในระบบค่ะ"
           });
-        } else {
-          replyText = "⚠️ ขออภัยค่ะ ตอนนี้ยังไม่มีข้อมูลตารางเวลาอัปเดตในระบบค่ะ";
+          return NextResponse.json({ message: 'OK' }, { status: 200 });
         }
 
-        await replyToLine(replyToken, replyText.trim());
+        // สร้างการ์ดแต่ละใบ (จำกัดสูงสุด 10 ใบตามโควตา Carousel ของ LINE)
+        const cards = availableEvents.slice(0, 10).map((row) => {
+          const date = row[0];
+          const eventName = row[2] || 'ไม่มีชื่อตาราง';
+          const locationName = row[3] || '-';
+
+          return {
+            type: "bubble",
+            body: {
+              type: "box",
+              layout: "vertical",
+              spacing: "md",
+              contents: [
+                {
+                  type: "text",
+                  text: eventName,
+                  weight: "bold",
+                  size: "md",
+                  wrap: true,
+                  maxLines: 2,
+                  color: "#111111"
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  spacing: "sm",
+                  contents: [
+                    {
+                      type: "box",
+                      layout: "baseline",
+                      spacing: "sm",
+                      contents: [
+                        { type: "text", text: "📆", size: "sm", flex: 0 },
+                        { type: "text", text: `วันที่: ${date}`, size: "sm", color: "#555555", flex: 1, wrap: true }
+                      ]
+                    },
+                    {
+                      type: "box",
+                      layout: "baseline",
+                      spacing: "sm",
+                      contents: [
+                        { type: "text", text: "📍", size: "sm", flex: 0 },
+                        { type: "text", text: locationName, size: "sm", color: "#555555", flex: 1, wrap: true }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            footer: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "box",
+                  layout: "vertical",
+                  backgroundColor: "#FEE1E8",
+                  cornerRadius: "md",
+                  paddingAll: "md",
+                  action: {
+                    type: "message",
+                    label: "🔍 เช็ครอบเวลาว่าง",
+                    text: `[ดูคิว] งาน: ${eventName} (${date})`
+                  },
+                  contents: [
+                    {
+                      type: "text",
+                      text: "🔍 เช็ครอบเวลาว่าง",
+                      align: "center",
+                      color: "#000000",
+                      weight: "bold",
+                      size: "sm"
+                    }
+                  ]
+                }
+              ]
+            }
+          };
+        });
+
+        // ประกอบการ์ดทั้งหมดเข้าเป็นโครงสร้าง Flex Carousel
+        const flexCarouselMessage = {
+          type: "flex",
+          altText: "📅 กรุณาเลือกงานที่ต้องการเช็คตารางคิว",
+          contents: {
+            type: "carousel",
+            contents: cards
+          }
+        };
+
+        await replyToLine(replyToken, flexCarouselMessage);
+      }
+
+      // ------------------------------------------------------------
+      // STEP 2: ลูกค้ากดปุ่มจากหน้าการ์ด -> ส่งตารางเวลาของงานนั้น
+      // ------------------------------------------------------------
+      else if (userMessage.startsWith("[ดูคิว]")) {
+        const rows = await getGoogleSheetData();
+        let matchedRow = null;
+
+        for (const row of rows) {
+          const date = row[0];
+          const eventName = row[2] || '-';
+          const formatCheck = `[ดูคิว] งาน: ${eventName} (${date})`;
+
+          if (userMessage === formatCheck) {
+            matchedRow = row;
+            break;
+          }
+        }
+
+        if (matchedRow) {
+          const date = matchedRow[0];
+          const eventName = matchedRow[2] || '-';
+          const locationName = matchedRow[3] || '-';
+
+          let replyText = `📅 ตารางรอบเวลาของงานคิวนี้ค่ะ\n`;
+          replyText += `🎪 งาน: ${eventName}\n`;
+          replyText += `📆 วันที่: ${date}\n`;
+          replyText += `📍 สถานที่: ${locationName}\n`;
+          replyText += `━━━━━━━━━━━━━━\n\n`;
+
+          TIME_SLOTS.forEach((timeLabel, index) => {
+            const columnIndex = 4 + index;
+            const slotStatusStr = matchedRow[columnIndex];
+            const slotStatus = slotStatusStr?.trim().toLowerCase() || 'available';
+
+            if (slotStatus === 'available') {
+              replyText += `  ✅ ${timeLabel} (ว่าง)\n`;
+            } else {
+              replyText += `  ❌ ${timeLabel} (เต็ม)\n`;
+            }
+          });
+
+          await replyToLine(replyToken, { type: 'text', text: replyText.trim() });
+        } else {
+          await replyToLine(replyToken, {
+            type: 'text',
+            text: "⚠️ ไม่พบข้อมูลรอบเวลาของงานนี้ หรือตารางมีการอัปเดตใหม่ กรุณาลองพิมพ์ 'เช็คตาราง' อีกครั้งค่ะ"
+          });
+        }
       }
     }
 

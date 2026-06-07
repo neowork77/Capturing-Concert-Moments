@@ -14,7 +14,7 @@ const getThailandDateDetails = () => {
     day: 'numeric'
   });
   const parts = formatter.formatToParts(new Date());
-  
+
   const thYear = parseInt(parts.find(p => p.type === 'year')?.value || '2026', 10);
   // Intl คืนค่า month เป็น 1-12 แต่ระบบ Date ทั่วไปใช้ 0-11 จึงต้องลบออก 1
   const thMonth = parseInt(parts.find(p => p.type === 'month')?.value || '1', 10) - 1;
@@ -31,7 +31,7 @@ const formatDate = (year: number, month: number, day: number) => {
 // Get data for a specific day, fallback to 'unavailable' if not set
 const getDayData = (year: number, month: number, day: number, remoteScheduleData: Record<string, DaySchedule>): DaySchedule => {
   const dateStr = formatDate(year, month, day);
-  
+
   if (remoteScheduleData[dateStr]) {
     return remoteScheduleData[dateStr];
   }
@@ -72,13 +72,13 @@ export default function Calendar() {
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
-  
+
   // Adjust for Sunday start: 0 = Sun, 1 = Mon, ..., 6 = Sat
   const startDay = firstDayOfMonth;
 
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const prefixDays = Array.from({ length: startDay }, (_, i) => i);
-  
+
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
@@ -127,10 +127,10 @@ export default function Calendar() {
 
       <ScrollReveal delay={0.15} className="relative z-10">
         <div className="p-6 sm:p-10 lg:p-12 rounded-[2.5rem] bg-white/95 sm:bg-white/80 sm:backdrop-blur-xl border border-[rgba(244,160,181,0.15)] shadow-[0_20px_80px_rgba(216,204,232,0.25)] relative">
-          
+
           {/* Header */}
           <div className="flex items-center justify-between mb-8 sm:mb-10">
-            <button 
+            <button
               onClick={prevMonth}
               disabled={isCurrentMonth}
               className={`p-3 rounded-2xl border ${isCurrentMonth ? 'bg-gray-50/50 border-gray-100 opacity-40 cursor-not-allowed' : 'bg-white border-[#F4A0B5]/20 hover:bg-[#F9F5FA] hover:shadow-[0_4px_12px_rgba(244,160,181,0.1)] active:scale-95'} text-[#3D3040] transition-all cursor-pointer`}
@@ -140,8 +140,8 @@ export default function Calendar() {
             <h3 className="text-xl sm:text-2xl font-bold text-[#3D3040] tracking-wide">
               {monthNames[month]} {year}
             </h3>
-            <button 
-              onClick={nextMonth} 
+            <button
+              onClick={nextMonth}
               className="p-3 rounded-2xl bg-white border border-[#F4A0B5]/20 hover:bg-[#F9F5FA] hover:shadow-[0_4px_12px_rgba(244,160,181,0.1)] text-[#3D3040] transition-all active:scale-95 cursor-pointer"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -171,7 +171,7 @@ export default function Calendar() {
                 {d}
               </div>
             ))}
-            
+
             {prefixDays.map(i => (
               <div key={`empty-${i}`} className="aspect-square" />
             ))}
@@ -179,15 +179,17 @@ export default function Calendar() {
             {days.map(day => {
               const dayData = getDayData(year, month, day, remoteScheduleData);
               // 🌟 บังคับตรวจจับ "วันปัจจุบัน (Today)" โดยเทียบตามเวลาไทยครบถ้วน
-              const isToday = thDay === day && thMonth === month && thYear === year;
+              const isToday =
+                day === thDay &&       // เลขวันตรงกับวันปัจจุบันของไทย
+                month === thMonth &&   // หน้าเดือนที่แสดงอยู่ ตรงกับเดือนปัจจุบันของไทย
+                year === thYear;       // หน้าปีที่แสดงอยู่ ตรงกับปีปัจจุบันของไทย
 
               return (
                 <div key={day} className="aspect-square relative group">
-                  <div 
+                  <div
                     onClick={() => handleDayClick(day, dayData)}
-                    className={`w-full h-full rounded-[1rem] sm:rounded-2xl flex flex-col items-center justify-center gap-1.5 sm:gap-2 transition-all duration-300 cursor-pointer border ${
-                      isToday ? 'bg-[#F4A0B5]/5 border-[#F4A0B5]/30' : 'bg-transparent border-transparent'
-                    } sm:hover:bg-white sm:hover:shadow-[0_8px_24px_rgba(244,160,181,0.15)] sm:hover:-translate-y-0.5 sm:hover:border-[#F4A0B5]/20 active:scale-95`}
+                    className={`w-full h-full rounded-[1rem] sm:rounded-2xl flex flex-col items-center justify-center gap-1.5 sm:gap-2 transition-all duration-300 cursor-pointer border ${isToday ? 'bg-[#F4A0B5]/5 border-[#F4A0B5]/30' : 'bg-transparent border-transparent'
+                      } sm:hover:bg-white sm:hover:shadow-[0_8px_24px_rgba(244,160,181,0.15)] sm:hover:-translate-y-0.5 sm:hover:border-[#F4A0B5]/20 active:scale-95`}
                   >
                     <span className={`font-medium text-sm sm:text-lg ${isToday ? 'text-[#F4A0B5] font-bold' : 'text-[#3D3040]'}`}>
                       {day}
@@ -205,14 +207,14 @@ export default function Calendar() {
       {/* Modal Overlay */}
       <AnimatePresence>
         {selectedDay && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#3D3040]/30 backdrop-blur-sm"
             onClick={() => setSelectedDay(null)}
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, y: 20, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 20, opacity: 0 }}
@@ -227,12 +229,12 @@ export default function Calendar() {
                       {selectedDay.day} {monthNames[month]} {year}
                     </h4>
                     <p className="text-sm font-medium text-[#B0A3A8] mt-1">
-                      {selectedDay.data.status === 'available' ? 'มีคิวว่าง (Available)' : 
-                       (selectedDay.data.status === 'booked' || selectedDay.data.status === 'unavailable') ? 'คิวเต็มแล้ว (Fully Booked)' : 
-                       'ไม่รับงาน (N/A)'}
+                      {selectedDay.data.status === 'available' ? 'มีคิวว่าง (Available)' :
+                        (selectedDay.data.status === 'booked' || selectedDay.data.status === 'unavailable') ? 'คิวเต็มแล้ว (Fully Booked)' :
+                          'ไม่รับงาน (N/A)'}
                     </p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setSelectedDay(null)}
                     className="p-2 bg-[#F9F5FA] text-[#7A6A73] rounded-full hover:bg-[#F4A0B5]/10 hover:text-[#F4A0B5] transition-colors shrink-0"
                   >
@@ -257,7 +259,7 @@ export default function Calendar() {
                 )}
               </div>
 
-              <div 
+              <div
                 className="space-y-3 max-h-[210px] overflow-y-auto pr-2 custom-scrollbar overscroll-contain"
                 data-lenis-prevent="true"
               >
@@ -268,13 +270,12 @@ export default function Calendar() {
                   </div>
                 ) : selectedDay.data.slots && selectedDay.data.slots.length > 0 ? (
                   selectedDay.data.slots.map((slot, idx) => (
-                    <div 
+                    <div
                       key={idx}
-                      className={`flex justify-between items-center p-4 rounded-xl border ${
-                        slot.status === 'available' 
-                          ? 'bg-gradient-to-r from-white to-[#F0FAF0] border-[#00B900]/20' 
+                      className={`flex justify-between items-center p-4 rounded-xl border ${slot.status === 'available'
+                          ? 'bg-gradient-to-r from-white to-[#F0FAF0] border-[#00B900]/20'
                           : 'bg-gradient-to-r from-white to-[#FFF0F0] border-[#FB7185]/20 opacity-70'
-                      }`}
+                        }`}
                     >
                       <span className="font-semibold text-[#3D3040]">{slot.time}</span>
                       {slot.status === 'available' ? (
@@ -297,8 +298,8 @@ export default function Calendar() {
               </div>
 
               {selectedDay.data.status === 'available' && (
-                <a 
-                  href="#contact" 
+                <a
+                  href="#contact"
                   onClick={() => setSelectedDay(null)}
                   className="mt-6 w-full block text-center py-3.5 rounded-2xl bg-[#3D3040] text-white font-semibold text-sm hover:bg-[#F4A0B5] hover:shadow-[0_8px_24px_rgba(244,160,181,0.4)] transition-all active:scale-95"
                 >
