@@ -83,7 +83,7 @@ export default function Contact() {
               สำหรับสอบถามรายละเอียดและจองคิวถ่ายรูปหน้าคอน สามารถทักมาได้เลย ♡
             </p>
             <a
-              href="https://line.me/ti/p/K9sonH6QXO"
+              href="https://lin.ee/ZXQYhIG"
               target="_blank"
               rel="noopener noreferrer"
               className="mt-auto w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#00B900] to-[#00D400] text-white font-semibold text-sm tracking-wide hover:from-[#00A000] hover:to-[#00C000] hover:shadow-[0_8px_32px_rgba(0,185,0,0.25)] active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2"
