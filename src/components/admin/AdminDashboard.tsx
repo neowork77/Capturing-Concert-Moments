@@ -19,46 +19,7 @@ interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
-// We need the image map for thumbnails — import statically
-import img1 from '../../assets/optimized/gallery-1.webp';
-import img2 from '../../assets/optimized/gallery-2.webp';
-import img3 from '../../assets/optimized/gallery-3.webp';
-import img4 from '../../assets/optimized/gallery-4.webp';
-import img5 from '../../assets/optimized/gallery-5.webp';
-import img6 from '../../assets/optimized/gallery-6.webp';
-import img7 from '../../assets/optimized/gallery-7.webp';
-import img8 from '../../assets/optimized/gallery-8.webp';
-import img9 from '../../assets/optimized/gallery-9.webp';
-import img10 from '../../assets/optimized/gallery-10.webp';
-import img11 from '../../assets/optimized/gallery-11.webp';
-import img12 from '../../assets/optimized/gallery-12.webp';
-import img13 from '../../assets/optimized/gallery-13.webp';
-import img14 from '../../assets/optimized/gallery-14.webp';
-import img15 from '../../assets/optimized/gallery-15.webp';
-import img16 from '../../assets/optimized/gallery-16.webp';
-import img17 from '../../assets/optimized/gallery-17.webp';
-import img18 from '../../assets/optimized/gallery-18.webp';
-import img19 from '../../assets/optimized/gallery-19.webp';
-import img20 from '../../assets/optimized/gallery-20.webp';
-import img21 from '../../assets/optimized/gallery-21.webp';
-import img22 from '../../assets/optimized/gallery-22.webp';
-import img23 from '../../assets/optimized/gallery-23.webp';
-import img24 from '../../assets/optimized/gallery-24.webp';
-import img25 from '../../assets/optimized/gallery-25.webp';
-import img26 from '../../assets/optimized/gallery-26.webp';
-import img27 from '../../assets/optimized/gallery-27.webp';
-import img29 from '../../assets/optimized/gallery-29.webp';
-import img30 from '../../assets/optimized/gallery-30.webp';
-import img31 from '../../assets/optimized/gallery-31.webp';
-import img32 from '../../assets/optimized/gallery-32.webp';
-import { StaticImageData } from 'next/image';
-
-const imageMap: Record<string, StaticImageData> = {
-  img1, img2, img3, img4, img5, img6, img7, img8, img9, img10,
-  img11, img12, img13, img14, img15, img16, img17, img18, img19, img20,
-  img21, img22, img23, img24, img25, img26, img27,
-  img29, img30, img31, img32,
-};
+import { imageMap } from '../../data/photos';
 
 type FilterMode = 'all' | 'active' | 'deleted';
 

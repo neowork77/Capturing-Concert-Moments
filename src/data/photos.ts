@@ -112,7 +112,7 @@ export interface PhotoData {
 const colors: ('pink' | 'cyan' | 'lime' | 'purple' | 'orange')[] = ['pink', 'cyan', 'lime', 'purple', 'orange'];
 
 // Map imgKey strings to actual imported images
-const imageMap: Record<string, StaticImageData> = {
+export const imageMap: Record<string, StaticImageData> = {
   img1, img2, img3, img4, img5, img6, img7, img8, img9, img10,
   img11, img12, img13, img14, img15, img16, img17, img18, img19, img20,
   img21, img22, img23, img24, img25, img26, img27,
