@@ -4,24 +4,10 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScrollReveal from './ScrollReveal';
 import { DaySchedule, DayStatus, TimeSlot } from '../data/schedule';
+import { useThailandDate, getThailandDateDetails } from '../hooks/useThailandDate';
 
 // 🌟 ฟังก์ชันพิเศษสำหรับดึงวันที่/เดือน/ปี ของฝั่งประเทศไทย (Asia/Bangkok) เสมอ
-const getThailandDateDetails = () => {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Bangkok',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric'
-  });
-  const parts = formatter.formatToParts(new Date());
-
-  const thYear = parseInt(parts.find(p => p.type === 'year')?.value || '2026', 10);
-  // Intl คืนค่า month เป็น 1-12 แต่ระบบ Date ทั่วไปใช้ 0-11 จึงต้องลบออก 1
-  const thMonth = parseInt(parts.find(p => p.type === 'month')?.value || '1', 10) - 1;
-  const thDay = parseInt(parts.find(p => p.type === 'day')?.value || '1', 10);
-
-  return { thYear, thMonth, thDay };
-};
+// ฟังก์ชันและ Custom Hook ถูกย้ายไปที่ src/hooks/useThailandDate.ts
 
 // Helper to format date as YYYY-MM-DD
 const formatDate = (year: number, month: number, day: number) => {
@@ -84,8 +70,8 @@ export default function Calendar() {
     "July", "August", "September", "October", "November", "December"
   ];
 
-  // 🌟 ดึงเวลาไทยมาเช็คสำหรับฟังก์ชันปุ่มเลื่อนเดือน
-  const { thYear, thMonth, thDay } = getThailandDateDetails();
+  // 🌟 ดึงเวลาไทยมาเช็คแบบ Real-time (ใช้ Custom Hook) เพื่อให้อัปเดตอัตโนมัติ
+  const { thYear, thMonth, thDay } = useThailandDate();
 
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
   const prevMonth = () => {

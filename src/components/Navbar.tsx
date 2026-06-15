@@ -143,10 +143,19 @@ export default function Navbar() {
                   {link.label}
                 </motion.button>
               ))}
+              <motion.button
+                initial={{ opacity: 0, x: -16 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: navLinks.length * 0.08 }}
+                onClick={() => scrollToSection('#calendar')}
+                className="text-2xl font-display font-semibold text-[#3D3040] hover:text-[#F4A0B5] transition-colors text-left cursor-pointer"
+              >
+                Check Availability
+              </motion.button>
               <motion.a
                 initial={{ opacity: 0, x: -16 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.25 }}
+                transition={{ delay: 0.32 }}
                 href="#contact"
                 onClick={() => setIsMobileOpen(false)}
                 className="mt-4 px-6 py-3 text-center text-base font-medium rounded-xl border border-[#F4A0B5]/40 text-[#F4A0B5]"
