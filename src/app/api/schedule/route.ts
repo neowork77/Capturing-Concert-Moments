@@ -1,3 +1,5 @@
+export const revalidate = 300; // Cache for 5 minutes
+
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { DaySchedule, TimeSlot, DayStatus, SlotStatus } from '@/data/schedule';
@@ -80,11 +82,7 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json(scheduleData, {
-      headers: {
-        'Cache-Control': 'no-store, max-age=0',
-      },
-    });
+    return NextResponse.json(scheduleData);
   } catch (error: any) {
     // 5. ปรับปรุงการล็อก Error ให้เห็นข้อความชัดเจนขึ้น
     console.error('❌ เกิดข้อผิดพลาดในการดึงข้อมูลจาก Google Sheets:', error.message || error);

@@ -42,13 +42,13 @@ export default function Contact() {
 
             <div className="text-center space-y-1.5">
               <p className="text-[#3D3040] font-bold text-xl tracking-tight">X (Twitter)</p>
-              <p className="text-[#C8BBC0] text-sm font-medium">@watashiwajp</p>
+              <p className="text-[#C8BBC0] text-sm font-medium">@somebqody</p>
             </div>
             <p className="text-[#B0A3A8] text-xs text-center leading-relaxed max-w-[200px]">
               สำหรับสอบถามรายละเอียดและจองคิวถ่ายรูปหน้าคอน สามารถทักมาได้เลย ♡
             </p>
             <a
-              href="https://x.com/watashiwajp?s=21"
+              href="https://x.com/somebqody?s=11"
               target="_blank"
               rel="noopener noreferrer"
               className="mt-auto w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#1D1D1F] to-[#2d2d2f] text-white font-semibold text-sm tracking-wide hover:from-[#333] hover:to-[#444] hover:shadow-[0_8px_32px_rgba(0,0,0,0.2)] active:scale-[0.98] transition-all duration-300 text-center"

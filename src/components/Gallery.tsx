@@ -3,14 +3,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { photos, Photo } from '@/data/photos';
 import PhotoCard from './PhotoCard';
-import Lightbox from './Lightbox';
 import ScrollReveal from './ScrollReveal';
 
 const PHOTOS_PER_PAGE = 12;
 
 export default function Gallery() {
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [lightboxIndex, setLightboxIndex] = useState<number>(-1);
   const mobileScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,28 +25,9 @@ export default function Gallery() {
     return photos.slice(start, end);
   }, [currentPage]);
 
-  const openLightbox = (index: number) => setLightboxIndex(index);
-  const closeLightbox = () => setLightboxIndex(-1);
-
-  const goToPrev = () => {
-    setLightboxIndex((prev) =>
-      prev > 0 ? prev - 1 : paginatedPhotos.length - 1
-    );
-  };
-
-  const goToNext = () => {
-    setLightboxIndex((prev) =>
-      prev < paginatedPhotos.length - 1 ? prev + 1 : 0
-    );
-  };
-
   const goToPage = (page: number) => {
     setCurrentPage(page);
-    setLightboxIndex(-1);
   };
-
-  const currentPhoto: Photo | null =
-    lightboxIndex >= 0 ? paginatedPhotos[lightboxIndex] : null;
 
   return (
     <section id="gallery" className="relative py-12 sm:py-32 px-6 sm:px-8 lg:px-12 max-w-6xl mx-auto">
@@ -132,7 +111,6 @@ export default function Gallery() {
             <PhotoCard
               photo={photo}
               index={index}
-              onClick={() => openLightbox(index)}
               priority={index < 2}
               loading={index < 3 ? 'eager' : 'lazy'}
               sizes="85vw"
@@ -148,7 +126,6 @@ export default function Gallery() {
             key={`desktop-${photo.id}`}
             photo={photo}
             index={index}
-            onClick={() => openLightbox(index)}
             priority={index < 4}
             loading={index < 6 ? 'eager' : 'lazy'}
             sizes="(min-width: 1024px) 33vw, 50vw"
@@ -162,16 +139,6 @@ export default function Gallery() {
         </div>
       )}
 
-      {/* Lightbox */}
-      <Lightbox
-        photo={currentPhoto}
-        isOpen={lightboxIndex >= 0}
-        onClose={closeLightbox}
-        onPrev={goToPrev}
-        onNext={goToNext}
-        currentIndex={lightboxIndex}
-        totalCount={paginatedPhotos.length}
-      />
     </section>
   );
 }

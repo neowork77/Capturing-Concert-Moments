@@ -48,7 +48,7 @@ export default function Hero() {
           transition={{ duration: 0.5, delay: 0.6 }}
           className="text-base sm:text-lg lg:text-xl text-[#9E8E95] max-w-xl mx-auto mb-10 sm:mb-12 leading-relaxed font-light"
         >
-          รับถ่ายรูปหน้าคอนเสิร์ต เก็บโมเมนต์หน้าคอน 20 นาที 199 บาท ไม่จำกัดจำนวนรูป ใช้กล้อง Ricoh GRIIIx + Flash ภาพสวยคม จบหลังกล้อง พร้อมรับรูปภายในวันหลังคอนจบ
+          รับถ่ายรูปหน้าคอนเสิร์ต เก็บโมเมนต์หน้าคอน 20 นาที 219 บาท ไม่จำกัดจำนวนรูป ใช้กล้อง Ricoh GRIIIx + Flash ภาพสวยคม จบหลังกล้อง พร้อมรับรูปภายในวันหลังคอนจบ
         </motion.p>
 
         {/* CTA buttons */}

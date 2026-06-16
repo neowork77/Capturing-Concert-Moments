@@ -1,36 +1,35 @@
 import { StaticImageData } from 'next/image';
-import img1 from '../assets/optimized/gallery-1.webp';
-import img2 from '../assets/optimized/gallery-2.webp';
-import img3 from '../assets/optimized/gallery-3.webp';
-import img4 from '../assets/optimized/gallery-4.webp';
-import img5 from '../assets/optimized/gallery-5.webp';
-import img6 from '../assets/optimized/gallery-6.webp';
-import img7 from '../assets/optimized/gallery-7.webp';
-import img8 from '../assets/optimized/gallery-8.webp';
-import img9 from '../assets/optimized/gallery-9.webp';
-import img10 from '../assets/optimized/gallery-10.webp';
-import img11 from '../assets/optimized/gallery-11.webp';
-import img12 from '../assets/optimized/gallery-12.webp';
-import img13 from '../assets/optimized/gallery-13.webp';
-import img14 from '../assets/optimized/gallery-14.webp';
-import img15 from '../assets/optimized/gallery-15.webp';
-import img16 from '../assets/optimized/gallery-16.webp';
-import img17 from '../assets/optimized/gallery-17.webp';
-import img18 from '../assets/optimized/gallery-18.webp';
-import img19 from '../assets/optimized/gallery-19.webp';
-import img20 from '../assets/optimized/gallery-20.webp';
-import img21 from '../assets/optimized/gallery-21.webp';
-import img22 from '../assets/optimized/gallery-22.webp';
-import img23 from '../assets/optimized/gallery-23.webp';
-import img24 from '../assets/optimized/gallery-24.webp';
-import img25 from '../assets/optimized/gallery-25.webp';
-import img26 from '../assets/optimized/gallery-26.webp';
-import img27 from '../assets/optimized/gallery-27.webp';
-// import img28 from '../assets/optimized/gallery-28.webp';
-import img29 from '../assets/optimized/gallery-29.webp';
-import img30 from '../assets/optimized/gallery-30.webp';
-import img31 from '../assets/optimized/gallery-31.webp';
-import img32 from '../assets/optimized/gallery-32.webp';
+import img1 from '../assets/gallery-1.jpg';
+import img2 from '../assets/gallery-2.jpg';
+import img3 from '../assets/gallery-3.jpg';
+import img4 from '../assets/gallery-4.jpg';
+import img5 from '../assets/gallery-5.jpg';
+import img6 from '../assets/gallery-6.jpg';
+import img7 from '../assets/gallery-7.jpg';
+import img8 from '../assets/gallery-8.jpg';
+import img9 from '../assets/gallery-9.jpeg';
+import img10 from '../assets/gallery-10.jpeg';
+import img11 from '../assets/gallery-11.jpeg';
+import img12 from '../assets/gallery-12.jpeg';
+import img13 from '../assets/gallery-13.jpeg';
+import img14 from '../assets/gallery-14.jpeg';
+import img15 from '../assets/gallery-15.jpeg';
+import img16 from '../assets/gallery-16.jpeg';
+import img17 from '../assets/gallery-17.jpeg';
+import img18 from '../assets/gallery-18.jpeg';
+import img19 from '../assets/gallery-19.jpeg';
+import img20 from '../assets/gallery-20.jpeg';
+import img21 from '../assets/gallery-21.jpeg';
+import img22 from '../assets/gallery-22.jpeg';
+import img23 from '../assets/gallery-23.jpeg';
+import img24 from '../assets/gallery-24.jpeg';
+import img25 from '../assets/gallery-25.jpeg';
+import img26 from '../assets/gallery-26.jpeg';
+import img27 from '../assets/gallery-27.jpeg';
+import img29 from '../assets/gallery-29.jpg';
+import img30 from '../assets/gallery-30.jpg';
+import img31 from '../assets/gallery-31.jpg';
+import img32 from '../assets/gallery-32.jpg';
 import img33 from '../assets/gallery-33.jpg';
 import img34 from '../assets/gallery-34.jpg';
 import img35 from '../assets/gallery-35.jpg';
@@ -83,8 +82,6 @@ import img81 from '../assets/gallery-81.jpg';
 import img82 from '../assets/gallery-82.jpg';
 import img83 from '../assets/gallery-83.jpg';
 
-import photosDataJson from './photos-data.json';
-
 export interface Photo {
   id: string;
   src: string;
@@ -99,16 +96,6 @@ export interface Photo {
   accentColor: 'pink' | 'cyan' | 'lime' | 'purple' | 'orange';
 }
 
-export interface PhotoData {
-  id: string;
-  imgKey: string;
-  artist: string;
-  event: string;
-  venue: string;
-  date: string;
-  deleted: boolean;
-}
-
 const colors: ('pink' | 'cyan' | 'lime' | 'purple' | 'orange')[] = ['pink', 'cyan', 'lime', 'purple', 'orange'];
 
 // Map imgKey strings to actual imported images
@@ -116,84 +103,24 @@ export const imageMap: Record<string, StaticImageData> = {
   img1, img2, img3, img4, img5, img6, img7, img8, img9, img10,
   img11, img12, img13, img14, img15, img16, img17, img18, img19, img20,
   img21, img22, img23, img24, img25, img26, img27,
-  img29, img30, img31, img32,
-  img33, img34, img35, img36, img37, img38, img39, img40,
-  img41, img42, img43, img44, img45, img46, img47, img48, img49, img50,
-  img51, img52, img53, img54, img55, img56, img57, img58, img59, img60,
-  img61, img62, img63, img64, img65, img66, img67, img68, img69, img70,
-  img71, img72, img73, img74, img75, img76, img77, img78, img79, img80,
-  img81, img82, img83,
+  img29, img30, img31, img32, img33, img34, img35, img36,
+  img37, img38, img39, img40, img41, img42, img43, img44, img45,
+  img46, img47, img48, img49, img50, img51, img52, img53,
+  img54, img55, img56, img57, img58, img59, img60, img61, img62, img63,
+  img64, img65, img66, img67, img68, img69, img70, img71, img72, img73,
+  img74, img75, img76, img77, img78, img79, img80, img81, img82, img83,
 };
 
-// Build all photos (including deleted) for admin usage
-export const allPhotos: Photo[] = (photosDataJson.photos as PhotoData[])
-  .map((data, i) => {
-    let src = '';
-    let width = 1200;
-    let height = 800;
-    let blurDataURL: string | undefined = undefined;
-
-    if (data.imgKey.startsWith('http://') || data.imgKey.startsWith('https://')) {
-      src = data.imgKey;
-    } else {
-      const img = imageMap[data.imgKey];
-      if (!img) return null;
-      src = img.src;
-      width = img.width;
-      height = img.height;
-      blurDataURL = img.blurDataURL;
-    }
-
-    const photo: Photo = {
-      id: data.id,
-      src,
-      alt: `Concert photo ${data.id}`,
-      artist: data.artist,
-      event: data.event,
-      venue: data.venue,
-      date: data.date,
-      width,
-      height,
-      blurDataURL,
-      accentColor: colors[i % colors.length],
-    };
-    return photo;
-  })
-  .filter((p): p is Photo => p !== null);
-
-// Only non-deleted photos for the public gallery
-export const photos: Photo[] = (photosDataJson.photos as PhotoData[])
-  .filter((d) => !d.deleted)
-  .map((data, i) => {
-    let src = '';
-    let width = 1200;
-    let height = 800;
-    let blurDataURL: string | undefined = undefined;
-
-    if (data.imgKey.startsWith('http://') || data.imgKey.startsWith('https://')) {
-      src = data.imgKey;
-    } else {
-      const img = imageMap[data.imgKey];
-      if (!img) return null;
-      src = img.src;
-      width = img.width;
-      height = img.height;
-      blurDataURL = img.blurDataURL;
-    }
-
-    const photo: Photo = {
-      id: data.id,
-      src,
-      alt: `Concert photo ${data.id}`,
-      artist: data.artist,
-      event: data.event,
-      venue: data.venue,
-      date: data.date,
-      width,
-      height,
-      blurDataURL,
-      accentColor: colors[i % colors.length],
-    };
-    return photo;
-  })
-  .filter((p): p is Photo => p !== null);
+export const photos: Photo[] = Object.values(imageMap).map((img, i) => ({
+  id: `${i + 1}`,
+  src: img.src,
+  alt: `Concert photo ${i + 1}`,
+  artist: 'Artist',
+  event: 'Concert',
+  venue: 'Venue',
+  date: '2026-05-18',
+  width: img.width,
+  height: img.height,
+  blurDataURL: img.blurDataURL,
+  accentColor: colors[i % colors.length],
+}));

@@ -16,12 +16,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  
-  // 🟢 สำหรับ Next.js เวอร์ชันใหม่ ต้องย้ายมาใส่ใน experimental แบบนี้ครับ
   experimental: {
     serverActions: {
-      bodySizeLimit: '20mb', // ปรับขนาดไฟล์ตามต้องการ เช่น '20mb', '50mb'
+      bodySizeLimit: '20mb',
     },
+  },
+  // ล็อคเป้าหมายให้ Turbopack สแกนเฉพาะในโฟลเดอร์นี้เพื่อไม่ให้ค้าง
+  turbopack: {
+    root: './', 
   },
 };
 
