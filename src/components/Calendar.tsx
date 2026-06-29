@@ -27,14 +27,22 @@ const getDayData = (year: number, month: number, day: number, remoteScheduleData
 };
 
 export default function Calendar() {
-  // 🌟 เริ่มต้น State ปฏิทินโดยใช้ปีและเดือนตามเวลาของประเทศไทย
-  const [currentDate, setCurrentDate] = useState(() => {
-    const { thYear, thMonth, thDay } = getThailandDateDetails();
-    return new Date(thYear, thMonth, thDay);
-  });
+  // 🌟 ดึงเวลาไทยมาเช็คแบบ Real-time (ใช้ Custom Hook) เพื่อให้อัปเดตอัตโนมัติ
+  // ย้ายขึ้นมาด้านบนเพื่อให้ useEffect สามารถเข้าถึงตัวแปรเหล่านี้ได้ทันที
+  const { thYear, thMonth, thDay } = useThailandDate();
+
+  // 🌟 เริ่มต้น State ปฏิทินเป็น null เพื่อเลี่ยงปัญหา Hydration Mismatch ระหว่าง Server กับ Client (แก้ปัญหาค้างวันที่ 16 บน Vercel)
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [selectedDay, setSelectedDay] = useState<{ day: number, data: DaySchedule } | null>(null);
   const [remoteScheduleData, setRemoteScheduleData] = useState<Record<string, DaySchedule>>({});
   const [isLoading, setIsLoading] = useState(true);
+
+  // 🌟 ใช้ useEffect บังคับให้ตั้งค่าวันที่ปัจจุบันหลังจาก Component เมานท์บนฝั่ง Client แล้วเท่านั้น
+  useEffect(() => {
+    if (thYear !== undefined && thMonth !== undefined && thDay !== undefined) {
+      setCurrentDate(new Date(thYear, thMonth, thDay));
+    }
+  }, [thYear, thMonth, thDay]);
 
   useEffect(() => {
     const fetchSchedule = async () => {
@@ -53,8 +61,11 @@ export default function Calendar() {
     fetchSchedule();
   }, []);
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
+  // 🌟 ป้องกันกรณีที่ currentDate ยังเป็น null ในจังหวะโหลด SSR
+  // ให้ดึงค่าจาก Fallback หรือ useThailandDate มาใช้ชั่วคราวไปก่อน
+  const fallbackDate = new Date();
+  const year = currentDate ? currentDate.getFullYear() : (thYear !== undefined ? thYear : fallbackDate.getFullYear());
+  const month = currentDate ? currentDate.getMonth() : (thMonth !== undefined ? thMonth : fallbackDate.getMonth());
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
@@ -69,9 +80,6 @@ export default function Calendar() {
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
-
-  // 🌟 ดึงเวลาไทยมาเช็คแบบ Real-time (ใช้ Custom Hook) เพื่อให้อัปเดตอัตโนมัติ
-  const { thYear, thMonth, thDay } = useThailandDate();
 
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
   const prevMonth = () => {
