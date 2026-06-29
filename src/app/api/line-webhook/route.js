@@ -166,7 +166,7 @@ export async function POST(req) {
         availableEvents.forEach(row => {
           const date = row[0].trim();
           const eventName = row[2].trim();
-          
+
           if (!groupedEvents[eventName]) {
             groupedEvents[eventName] = {
               rowData: row,
@@ -183,14 +183,14 @@ export async function POST(req) {
         const cards = eventGroups.slice(0, 10).map((group) => {
           const row = group.rowData;
           const dates = group.dates;
-          
+
           const eventName = row[2] || 'ไม่มีชื่อตาราง';
           const locationName = row[3] || '-';
           const imageUrl = row[18] || 'https://via.placeholder.com/150';
 
           const isMultiDay = dates.length > 1;
           const dateDisplay = isMultiDay ? `${dates[0]} ~ ${dates[dates.length - 1]} (${dates.length} วัน)` : dates[0];
-          
+
           const actionText = isMultiDay ? `[เลือกวัน] งาน: ${eventName}` : `[ดูคิว] งาน: ${eventName} (${dates[0]})`;
 
           return {
@@ -304,9 +304,9 @@ export async function POST(req) {
         const eventNameSearch = userMessage.replace("[เลือกวัน] งาน:", "").trim();
 
         const rows = await getGoogleSheetData();
-        
-        const matchedRows = rows.filter(row => 
-          row[1]?.toLowerCase().trim() === 'available' && 
+
+        const matchedRows = rows.filter(row =>
+          row[1]?.toLowerCase().trim() === 'available' &&
           (row[2] || '').trim() === eventNameSearch
         );
 
@@ -444,6 +444,17 @@ export async function POST(req) {
 
         if (foundPhone) {
           const customerPhone = foundPhone[0];
+
+          // 💡 ตรวจสอบว่าเบอร์โทรศัพท์ (เมื่อตัดเครื่องหมายขีดออกแล้ว) ครบ 10 หลักหรือไม่
+          const cleanPhone = customerPhone.replace(/-/g, "");
+          if (cleanPhone.length !== 10) {
+            await replyToLine(replyToken, {
+              type: 'text',
+              text: "⚠️ โปรดกรอกเบอร์มือถือให้ครบ 10 หลัก ตัวอย่าง 0812345678"
+            });
+            return NextResponse.json({ message: 'OK' }, { status: 200 });
+          }
+
           let customerTime = foundTime ? foundTime[0].replace(/\./g, ':').replace(/\s+/g, '') : "";
 
           // 1️⃣ ถ้าระบบตรวจไม่เจอรูปแบบเวลาที่ลูกค้าพิมพ์มา หรือเวลาว่างเปล่า
@@ -504,7 +515,7 @@ export async function POST(req) {
             .replace(foundTime ? foundTime[0] : "", "")
             .replace(/\s+/g, " ")
             .trim();
-          
+
           if (!customerName) customerName = "ไม่ระบุชื่อ";
 
           const lineDisplayName = await getLineUserProfile(userId);
@@ -524,7 +535,7 @@ export async function POST(req) {
         // STEP 3: แอดมินพิมพ์ #ตามด้วยชื่องาน (กรณีอื่นๆ)
         // ------------------------------------------------------------
         if (rawMessage.startsWith("#")) {
-          const adminSearchQuery = rawMessage.substring(1).toLowerCase().trim(); 
+          const adminSearchQuery = rawMessage.substring(1).toLowerCase().trim();
           const rows = await getGoogleSheetData();
 
           const matchedRows = rows.filter(row => {
