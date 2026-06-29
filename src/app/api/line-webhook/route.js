@@ -226,7 +226,7 @@ export async function POST(req) {
                       layout: "baseline",
                       spacing: "sm",
                       contents: [
-                        { type: "text", text: "📆", size: "sm", flex: 0 },
+                        { type: "text", text: "🗓️", size: "sm", flex: 0 },
                         { type: "text", text: `วันที่: ${dateDisplay}`, size: "sm", color: "#555555", flex: 1, wrap: true }
                       ]
                     },
@@ -285,7 +285,7 @@ export async function POST(req) {
           },
           {
             type: "flex",
-            altText: "📅 กรุณาเลือกงานที่ต้องการเช็คตารางคิว",
+            altText: "🗓️ กรุณาเลือกงานที่ต้องการเช็คตารางคิว",
             contents: {
               type: "carousel",
               contents: cards
@@ -341,7 +341,7 @@ export async function POST(req) {
 
           const flexMessage = {
             type: "flex",
-            altText: `📅 กรุณาเลือกวันสำหรับงาน ${eventNameSearch}`,
+            altText: `🗓️ กรุณาเลือกวันสำหรับงาน ${eventNameSearch}`,
             contents: {
               type: "bubble",
               body: {
@@ -349,7 +349,7 @@ export async function POST(req) {
                 layout: "vertical",
                 spacing: "md",
                 contents: [
-                  { type: "text", text: "📅 เลือกรอบวันที่ต้องการ", weight: "bold", size: "md", color: "#111111" },
+                  { type: "text", text: "🗓️ เลือกรอบวันที่ต้องการ", weight: "bold", size: "md", color: "#111111" },
                   { type: "text", text: `งาน: ${eventNameSearch}`, size: "sm", color: "#555555", wrap: true },
                   { type: "separator", margin: "md" },
                   {
@@ -401,9 +401,9 @@ export async function POST(req) {
             userSessionMemory.set(userId, { eventName, date });
           }
 
-          let replyText = `📅 ตารางรอบเวลาของงานคิวนี้ค่ะ\n`;
+          let replyText = `🗓️ ตารางรอบเวลาของงานคิวนี้ค่ะ\n`;
           replyText += `🎪 งาน: ${eventName}\n`;
-          replyText += `📆 วันที่: ${date}\n`;
+          replyText += `🗓️ วันที่: ${date}\n`;
           replyText += `📍 สถานที่: ${locationName}\n`;
           replyText += `━━━━━━━━━━━━━━\n`;
 
@@ -563,7 +563,7 @@ export async function POST(req) {
 
             const singleFlexCard = {
               type: "flex",
-              altText: `📅 รายละเอียดงาน: ${standardEventName}`,
+              altText: `🗓️ รายละเอียดงาน: ${standardEventName}`,
               contents: {
                 type: "bubble",
                 hero: {
@@ -589,7 +589,7 @@ export async function POST(req) {
                           layout: "baseline",
                           spacing: "sm",
                           contents: [
-                            { type: "text", text: "📆", size: "sm", flex: 0 },
+                            { type: "text", text: "🗓️", size: "sm", flex: 0 },
                             { type: "text", text: `วันที่: ${dateDisplay}`, size: "sm", color: "#555555", flex: 1, wrap: true }
                           ]
                         },
