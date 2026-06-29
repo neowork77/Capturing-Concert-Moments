@@ -436,18 +436,21 @@ export async function POST(req) {
       else if (event.type === 'message' && event.message.type === 'text') {
         const rawMessage = event.message.text.trim();
 
-        const phoneRegex = /(0\d{1,2}-?\d{3}-?\d{4})/;
+        // 💡 ปรับ Regex ใหม่ให้กวาดจับกลุ่มตัวเลขที่ขึ้นต้นด้วย 0 และมีความยาวตัวเลขระหว่าง 5-12 หลัก (รวมขีดได้)
+        const phoneRegex = /(0[0-9-]{4,14})/;
         const foundPhone = rawMessage.match(phoneRegex);
 
         const timeRegex = /(\d{1,2}[:.]\d{2}\s*-\s*\d{1,2}[:.]\d{2})/;
         const foundTime = rawMessage.match(timeRegex);
 
         if (foundPhone) {
-          const customerPhone = foundPhone[0];
+          const customerPhone = foundPhone[0].trim();
 
-          // 💡 ตรวจสอบว่าเบอร์โทรศัพท์ (เมื่อตัดเครื่องหมายขีดออกแล้ว) ครบ 10 หลักหรือไม่
+          // 💡 ลบเครื่องหมายขีดออกเพื่อเอาไว้นับเฉพาะจำนวนตัวเลขล้วนๆ
           const cleanPhone = customerPhone.replace(/-/g, "");
-          if (cleanPhone.length !== 10) {
+
+          // 🚫 ถ้าไม่ใช่ตัวเลขล้วน หรือ ความยาวไม่เท่ากับ 10 หลัก หรือ ดึงมาแล้วติดตัวอักษรอื่น
+          if (cleanPhone.length !== 10 || isNaN(cleanPhone)) {
             await replyToLine(replyToken, {
               type: 'text',
               text: "⚠️ โปรดกรอกเบอร์มือถือให้ครบ 10 หลัก ตัวอย่าง 0812345678"
