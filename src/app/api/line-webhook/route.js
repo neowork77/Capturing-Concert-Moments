@@ -440,7 +440,8 @@ export async function POST(req) {
         const phoneRegex = /(0[0-9-]{4,14})/;
         const foundPhone = rawMessage.match(phoneRegex);
 
-        const timeRegex = /(\d{1,2}[:.]\d{2}\s*-\s*\d{1,2}[:.]\d{2})/;
+        // 💡 ปรับ Regex เวลาเดิม ให้ครอบคลุมคำว่า "เวลา" ไปด้วยเลย
+        const timeRegex = /(?:เวลา\s*)?(\d{1,2}[:.]\d{2}\s*-\s*\d{1,2}[:.]\d{2})/;
         const foundTime = rawMessage.match(timeRegex);
 
         if (foundPhone) {
@@ -458,7 +459,14 @@ export async function POST(req) {
             return NextResponse.json({ message: 'OK' }, { status: 200 });
           }
 
+          // ดึงช่วงเวลาออกมา แล้วทำการล้างคำว่า "เวลา", ลบจุดเปลี่ยนเป็นโคลอน และลบช่องว่างออกให้หมด
           let customerTime = foundTime ? foundTime[0].replace(/\./g, ':').replace(/\s+/g, '') : "";
+
+          // 💡 เพิ่มเติม: ค้นหาและล้างคำว่า "เวลา" (ถ้ามี) ที่ติดมาจากข้อความลูกค้า เพื่อให้เหลือแค่ตัวเลขช่วงเวลาเพียวๆ เช่น 15:00-15:20
+          if (customerTime) {
+            // กวาดล้างคำว่า "เวลา" หรือ "เวลา:" ออกไป
+            customerTime = customerTime.replace(/เวลา[:：]?/g, "").trim();
+          }
 
           // 1️⃣ ถ้าระบบตรวจไม่เจอรูปแบบเวลาที่ลูกค้าพิมพ์มา หรือเวลาว่างเปล่า
           if (!customerTime) {
