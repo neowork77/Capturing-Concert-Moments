@@ -42,7 +42,7 @@ export default function Contact() {
 
             <div className="text-center space-y-1.5">
               <p className="text-[#3D3040] font-bold text-xl tracking-tight">X (Twitter)</p>
-              <p className="text-[#C8BBC0] text-sm font-medium">@somebqody</p>
+              <p className="text-[#C8BBC0] text-sm font-medium">@watashiwajpn</p>
             </div>
             <p className="text-[#B0A3A8] text-xs text-center leading-relaxed max-w-[200px]">
               สำหรับสอบถามรายละเอียดและจองคิวถ่ายรูปหน้าคอน สามารถทักมาได้เลย ♡
