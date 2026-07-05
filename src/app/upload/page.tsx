@@ -4,37 +4,64 @@ import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 
+interface UploadFile {
+  id: string;
+  file: File;
+  previewUrl: string;
+  status: 'idle' | 'uploading' | 'success' | 'error';
+  progress: number;
+  uploadedUrl?: string;
+  error?: string;
+}
+
 export default function UploadPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedFileId, setCopiedFileId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (selectedFile: File | null) => {
+  const handleFileChange = (selectedFiles: FileList | File[] | null) => {
     setError(null);
-    setUploadedUrl(null);
-    if (!selectedFile) return;
+    if (!selectedFiles || selectedFiles.length === 0) return;
 
-    if (!selectedFile.type.startsWith('image/')) {
-      setError('Please select an image file (PNG, JPG, WebP, etc.)');
-      return;
+    const newUploadFiles: UploadFile[] = [];
+    const invalidFiles: string[] = [];
+
+    Array.from(selectedFiles).forEach((selectedFile) => {
+      if (!selectedFile.type.startsWith('image/')) {
+        invalidFiles.push(`${selectedFile.name} (ไม่ใช่รูปภาพ)`);
+        return;
+      }
+
+      // Limit size to 10MB
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        invalidFiles.push(`${selectedFile.name} (ขนาดเกิน 10MB)`);
+        return;
+      }
+
+      const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const objectUrl = URL.createObjectURL(selectedFile);
+
+      newUploadFiles.push({
+        id,
+        file: selectedFile,
+        previewUrl: objectUrl,
+        status: 'idle',
+        progress: 0,
+      });
+    });
+
+    if (invalidFiles.length > 0) {
+      setError(`ข้ามบางไฟล์เนื่องจากไม่ตรงตามเงื่อนไข:\n${invalidFiles.join('\n')}`);
     }
 
-    // Limit size to 10MB
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      setError('File size must be less than 10MB');
-      return;
+    if (newUploadFiles.length > 0) {
+      setFiles((prev) => [...prev, ...newUploadFiles]);
     }
-
-    setFile(selectedFile);
-    const objectUrl = URL.createObjectURL(selectedFile);
-    setPreviewUrl(objectUrl);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -50,17 +77,27 @@ export default function UploadPage() {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFileChange(e.dataTransfer.files[0]);
+      handleFileChange(e.dataTransfer.files);
     }
   };
 
-  const handleRemove = () => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    setFile(null);
-    setPreviewUrl(null);
-    setUploadedUrl(null);
+  const handleRemoveFile = (id: string) => {
+    setFiles((prev) => {
+      const target = prev.find((f) => f.id === id);
+      if (target && target.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((f) => f.id !== id);
+    });
+  };
+
+  const handleClearAll = () => {
+    files.forEach((f) => {
+      if (f.previewUrl) {
+        URL.revokeObjectURL(f.previewUrl);
+      }
+    });
+    setFiles([]);
     setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -68,57 +105,99 @@ export default function UploadPage() {
   };
 
   const handleUpload = async () => {
-    if (!file) return;
+    const filesToUpload = files.filter((f) => f.status === 'idle' || f.status === 'error');
+    if (filesToUpload.length === 0) return;
 
     setIsUploading(true);
     setError(null);
-    setUploadProgress(10); // Start progress indication
 
-    const formData = new FormData();
-    formData.append('file', file);
+    // Initialize progress indicators for files being uploaded
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.status === 'idle' || f.status === 'error'
+          ? { ...f, status: 'uploading', progress: 10, error: undefined }
+          : f
+      )
+    );
 
-    try {
-      // Simulate progress updates for smoother UX
+    const uploadPromises = filesToUpload.map(async (uploadFile) => {
+      // Simulate progress for smoother UX
+      let simulatedProgress = 10;
       const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 15;
-        });
+        simulatedProgress = Math.min(simulatedProgress + 15, 90);
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === uploadFile.id ? { ...f, progress: simulatedProgress } : f
+          )
+        );
       }, 200);
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const formData = new FormData();
+      formData.append('file', uploadFile.file);
 
-      clearInterval(progressInterval);
-      setUploadProgress(100);
+      try {
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
 
-      const data = await response.json();
+        clearInterval(progressInterval);
 
-      if (response.ok && data.success) {
-        setUploadedUrl(data.url);
-        // Revoke preview to avoid memory leaks
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
-        setFile(null);
-      } else {
-        setError(data.error || 'Failed to upload image. Please try again.');
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Revoke object URL to avoid memory leaks after successful upload
+          if (uploadFile.previewUrl) {
+            URL.revokeObjectURL(uploadFile.previewUrl);
+          }
+
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === uploadFile.id
+                ? { ...f, status: 'success', progress: 100, uploadedUrl: data.url }
+                : f
+            )
+          );
+        } else {
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === uploadFile.id
+                ? { ...f, status: 'error', progress: 0, error: data.error || 'Failed to upload' }
+                : f
+            )
+          );
+        }
+      } catch (err: any) {
+        clearInterval(progressInterval);
+        console.error('Upload error for file:', uploadFile.file.name, err);
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === uploadFile.id
+              ? { ...f, status: 'error', progress: 0, error: 'เกิดข้อผิดพลาดในการเชื่อมต่อ' }
+              : f
+          )
+        );
       }
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      setError('An error occurred during upload. Please check your network.');
-    } finally {
-      setIsUploading(false);
-    }
+    });
+
+    await Promise.all(uploadPromises);
+    setIsUploading(false);
   };
 
-  const copyToClipboard = () => {
-    if (!uploadedUrl) return;
-    navigator.clipboard.writeText(uploadedUrl);
+  const copyToClipboard = (url: string, fileId: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedFileId(fileId);
+    setTimeout(() => setCopiedFileId(null), 2000);
+  };
+
+  const copyAllLinks = () => {
+    const urls = files
+      .filter((f) => f.status === 'success' && f.uploadedUrl)
+      .map((f) => f.uploadedUrl)
+      .join('\n');
+
+    if (!urls) return;
+    navigator.clipboard.writeText(urls);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -131,6 +210,10 @@ export default function UploadPage() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
+
+  const hasUploadFinished = files.length > 0 && files.every((f) => f.status === 'success' || f.status === 'error');
+  const allSuccess = files.length > 0 && files.every((f) => f.status === 'success');
+  const hasSuccesses = files.some((f) => f.status === 'success');
 
   return (
     <div className="min-h-screen py-16 px-4 sm:px-6 lg:px-8 bg-[#FFFBFC] text-[#3D3040] flex flex-col justify-between">
@@ -151,7 +234,7 @@ export default function UploadPage() {
             ✦ Studio Upload
           </span>
           <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight text-[#3D3040] mb-3">
-            Upload Image
+            Upload Images
           </h1>
           <p className="text-sm text-[#9E8E95] max-w-sm mx-auto font-light leading-relaxed">
             อัปโหลดไฟล์รูปภาพของคุณขึ้นระบบ Cloudflare R2 และบันทึกเข้าคลังภาพหน้าแรกโดยอัตโนมัติ
@@ -160,7 +243,7 @@ export default function UploadPage() {
 
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[rgba(0,0,0,0.04)] shadow-[0_8px_30px_rgb(0,0,0,0.01)] backdrop-blur-sm">
           {/* DRAG AND DROP ZONE */}
-          {!previewUrl && !uploadedUrl && (
+          {files.length === 0 && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -177,12 +260,13 @@ export default function UploadPage() {
               <input
                 type="file"
                 ref={fileInputRef}
-                onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+                multiple
+                onChange={(e) => handleFileChange(e.target.files)}
                 className="hidden"
                 accept="image/*"
               />
-              
-              <div className="w-14 h-14 rounded-full bg-[#FFF5F7] text-[#F4A0B5] flex items-center justify-center mb-4 border border-[rgba(244,160,181,0.15)] group-hover:scale-105 transition-transform duration-300">
+
+              <div className="w-14 h-14 rounded-full bg-[#FFF5F7] text-[#F4A0B5] flex items-center justify-center mb-4 border border-[rgba(244,160,181,0.15)] transition-transform duration-300">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
@@ -200,166 +284,282 @@ export default function UploadPage() {
               </div>
 
               <p className="text-sm font-semibold text-[#3D3040] mb-1">
-                Drag & drop your photo here
+                Drag & drop your photos here
               </p>
               <p className="text-xs text-[#9E8E95] font-light">
-                or click to browse from device
+                or click to browse from device (supports multiple files)
               </p>
               <span className="inline-block mt-4 px-3 py-1 bg-[rgba(0,0,0,0.02)] text-[10px] text-[#9E8E95] rounded-full">
-                Supports JPEG, PNG, WebP up to 10MB
+                Supports JPEG, PNG, WebP up to 10MB each
               </span>
             </motion.div>
           )}
 
-          {/* PREVIEW CONTAINER */}
-          {previewUrl && file && (
+          {/* MAIN WORKSPACE: PREVIEW & CONTROLS */}
+          {files.length > 0 && (
             <motion.div
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               className="space-y-6"
             >
-              <div className="relative rounded-2xl overflow-hidden border border-[rgba(0,0,0,0.06)] bg-neutral-50 flex items-center justify-center max-h-[300px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previewUrl}
-                  alt="Upload Preview"
-                  className="w-full h-full object-contain max-h-[300px]"
-                />
-                
-                <button
-                  onClick={handleRemove}
-                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 text-[#3D3040] shadow-md flex items-center justify-center hover:bg-white hover:scale-105 transition-all duration-200 cursor-pointer"
-                  title="Remove image"
-                  disabled={isUploading}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                    className="w-4 h-4"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Metadata Details */}
-              <div className="flex items-center justify-between text-xs bg-[#FFFBFC] p-3 rounded-xl border border-[rgba(0,0,0,0.02)]">
-                <div className="truncate max-w-[70%]">
-                  <p className="font-semibold text-[#3D3040] truncate">{file.name}</p>
-                  <p className="text-[#9E8E95] font-light">{formatBytes(file.size)}</p>
+              {/* Summary Header */}
+              <div className="flex items-center justify-between text-xs bg-[#FFFBFC] p-4 rounded-2xl border border-[rgba(0,0,0,0.02)]">
+                <div>
+                  <p className="font-semibold text-[#3D3040]">
+                    เลือกทั้งหมด {files.length} {files.length === 1 ? 'รูปภาพ' : 'รูปภาพ'}
+                  </p>
+                  <p className="text-[#9E8E95] font-light">
+                    ขนาดรวม: {formatBytes(files.reduce((acc, f) => acc + f.file.size, 0))}
+                  </p>
                 </div>
-                <span className="px-2 py-0.5 bg-[#FDDDE6] text-[#F4A0B5] font-bold rounded-md text-[10px] uppercase">
-                  {file.type.split('/')[1] || 'image'}
-                </span>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={handleRemove}
-                  disabled={isUploading}
-                  className="flex-1 py-3 px-4 rounded-xl border border-[rgba(0,0,0,0.08)] text-sm font-medium text-[#9E8E95] hover:text-[#3D3040] hover:bg-neutral-50 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUpload}
-                  disabled={isUploading}
-                  className="flex-2 py-3 px-4 rounded-xl bg-[#F4A0B5] hover:bg-[#F4A0B5]/90 text-white text-sm font-semibold shadow-[0_4px_12px_rgba(244,160,181,0.2)] transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {isUploading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Uploading ({uploadProgress}%)</span>
-                    </>
-                  ) : (
-                    <span>Upload Image</span>
+                {/* Upload status counts */}
+                <div className="flex gap-1.5">
+                  {files.some((f) => f.status === 'success') && (
+                    <span className="px-2 py-0.5 bg-[#C5E8D8] text-[#348861] font-bold rounded-md text-[10px] uppercase">
+                      สำเร็จ: {files.filter((f) => f.status === 'success').length}
+                    </span>
                   )}
-                </button>
+                  {files.some((f) => f.status === 'error') && (
+                    <span className="px-2 py-0.5 bg-[#FFF0F3] text-[#F4A0B5] font-bold rounded-md text-[10px] uppercase">
+                      ล้มเหลว: {files.filter((f) => f.status === 'error').length}
+                    </span>
+                  )}
+                </div>
               </div>
-            </motion.div>
-          )}
 
-          {/* SUCCESS SCREEN */}
-          {uploadedUrl && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center space-y-6"
-            >
-              <div className="w-16 h-16 rounded-full bg-[#C5E8D8]/30 text-[#4EB886] flex items-center justify-center mx-auto border border-[rgba(78,184,134,0.15)] animate-bounce">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2.5}
-                  stroke="currentColor"
-                  className="w-8 h-8"
+              {/* Grid of File Cards */}
+              <div className="grid grid-cols-1 gap-3 max-h-[360px] overflow-y-auto pr-1">
+                {files.map((file) => (
+                  <div
+                    key={file.id}
+                    className="relative bg-[#FFFBFC] border border-[rgba(0,0,0,0.05)] rounded-2xl p-3 flex gap-3 items-center group transition-all duration-300 hover:shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:border-[#F4A0B5]/20"
+                  >
+                    {/* Image Thumbnail */}
+                    <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-neutral-50 flex-shrink-0 flex items-center justify-center border border-[rgba(0,0,0,0.04)]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={file.previewUrl || file.uploadedUrl}
+                        alt={file.file.name}
+                        className="w-full h-full object-cover"
+                      />
+
+                      {/* Uploading Spinner Overlay */}
+                      {file.status === 'uploading' && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        </div>
+                      )}
+
+                      {/* Success Check Overlay */}
+                      {file.status === 'success' && (
+                        <div className="absolute inset-0 bg-[#4EB886]/80 flex items-center justify-center text-white">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={3}
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
+                        </div>
+                      )}
+
+                      {/* Error Alert Overlay */}
+                      {file.status === 'error' && (
+                        <div className="absolute inset-0 bg-[#F4A0B5]/80 flex items-center justify-center text-white">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={3}
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008h-.008v-.008z"
+                            />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Details */}
+                    <div className="flex-1 min-w-0 pr-6 relative">
+                      <p className="text-xs font-semibold text-[#3D3040] truncate" title={file.file.name}>
+                        {file.file.name}
+                      </p>
+                      <p className="text-[10px] text-[#9E8E95] font-light">{formatBytes(file.file.size)}</p>
+
+                      {/* Uploading progress bar */}
+                      {file.status === 'uploading' && (
+                        <div className="w-full bg-neutral-100 h-1 rounded-full mt-2 overflow-hidden">
+                          <div
+                            className="bg-[#F4A0B5] h-full transition-all duration-300"
+                            style={{ width: `${file.progress}%` }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Success state - Copy individual link */}
+                      {file.status === 'success' && file.uploadedUrl && (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <button
+                            onClick={() => copyToClipboard(file.uploadedUrl!, file.id)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors duration-150 flex items-center gap-1 cursor-pointer ${
+                              copiedFileId === file.id
+                                ? 'bg-[#C5E8D8] text-[#348861]'
+                                : 'bg-[#FFF0F3] hover:bg-[#FFF0F3]/80 text-[#F4A0B5]'
+                            }`}
+                          >
+                            {copiedFileId === file.id ? 'Copied!' : 'Copy Link'}
+                          </button>
+                          <a
+                            href={file.uploadedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-[#9E8E95] hover:text-[#3D3040] underline font-light"
+                          >
+                            View Image
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Error message */}
+                      {file.status === 'error' && (
+                        <p className="text-[10px] text-[#F4A0B5] font-medium mt-1 truncate" title={file.error}>
+                          {file.error || 'Upload failed'}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Remove / Delete Button (Only visible if not uploading) */}
+                    {!isUploading && file.status !== 'success' && (
+                      <button
+                        onClick={() => handleRemoveFile(file.id)}
+                        className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-neutral-50 hover:bg-neutral-100 text-[#9E8E95] hover:text-[#3D3040] flex items-center justify-center transition-colors cursor-pointer border border-[rgba(0,0,0,0.02)]"
+                        title="Remove file"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-3.5 h-3.5"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* SUCCESS SUMMARY CARD */}
+              {hasUploadFinished && allSuccess && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="bg-[#C5E8D8]/20 border border-[rgba(78,184,134,0.15)] rounded-2xl p-4 text-center"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              </div>
-
-              <div>
-                <h3 className="font-display text-xl font-bold text-[#3D3040] mb-1">
-                  Upload Successful!
-                </h3>
-                <p className="text-xs text-[#9E8E95] font-light">
-                  รูปภาพของคุณอัปโหลดขึ้น Cloudflare R2 และบันทึกข้อมูลเรียบร้อยแล้ว
-                </p>
-              </div>
-
-              <div className="relative rounded-2xl overflow-hidden border border-[rgba(0,0,0,0.06)] bg-neutral-50 flex items-center justify-center max-h-[220px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={uploadedUrl}
-                  alt="Uploaded Photo"
-                  className="w-full h-full object-contain max-h-[220px]"
-                />
-              </div>
-
-              {/* URL Display and Copy Button */}
-              <div className="space-y-2">
-                <p className="text-left text-[11px] font-bold text-[#9E8E95] uppercase tracking-wider">
-                  Public Image URL
-                </p>
-                <div className="flex gap-2 p-1.5 bg-[#FFFBFC] border border-[rgba(0,0,0,0.05)] rounded-xl items-center">
-                  <input
-                    type="text"
-                    readOnly
-                    value={uploadedUrl}
-                    className="flex-1 bg-transparent px-3 py-1 text-xs text-[#3D3040] focus:outline-none select-all truncate"
-                  />
+                  <p className="text-sm font-semibold text-[#348861] mb-1">✓ อัปโหลดรูปภาพทั้งหมดสำเร็จเรียบร้อยแล้ว!</p>
+                  <p className="text-xs text-[#9E8E95] font-light mb-3">รูปภาพของคุณอยู่ในระบบคลาวด์ R2 และฐานข้อมูลพร้อมใช้งานในแกลเลอรี</p>
                   <button
-                    onClick={copyToClipboard}
+                    onClick={copyAllLinks}
                     className={`py-2 px-4 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
                       copied
                         ? 'bg-[#C5E8D8] text-[#348861]'
                         : 'bg-[#F4A0B5] hover:bg-[#F4A0B5]/90 text-white'
                     }`}
                   >
-                    {copied ? 'Copied!' : 'Copy Link'}
+                    {copied ? 'Copied all links!' : 'Copy All Links'}
                   </button>
-                </div>
-              </div>
+                </motion.div>
+              )}
 
-              {/* Back / Upload more actions */}
+              {/* PARTIAL ERROR SUMMARY CARD */}
+              {hasUploadFinished && !allSuccess && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="bg-[#FFF0F3] border border-[rgba(244,160,181,0.2)] rounded-2xl p-4"
+                >
+                  <p className="text-sm font-bold text-[#F4A0B5] mb-1">⚠ การอัปโหลดเสร็จสิ้นแต่พบบางส่วนมีข้อผิดพลาด</p>
+                  <p className="text-xs text-[#3D3040] font-light leading-relaxed mb-3">
+                    มีบางไฟล์ที่ไม่สามารถอัปโหลดได้ คุณสามารถกดลองอีกครั้ง (Retry Failed) หรือลบไฟล์ดังกล่าวออกจากรายการ
+                  </p>
+                  <div className="flex gap-2">
+                    {hasSuccesses && (
+                      <button
+                        onClick={copyAllLinks}
+                        className={`flex-1 py-2 px-3 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
+                          copied
+                            ? 'bg-[#C5E8D8] text-[#348861]'
+                            : 'bg-[#F4A0B5]/10 text-[#F4A0B5] hover:bg-[#F4A0B5]/20 border border-[rgba(244,160,181,0.15)]'
+                        }`}
+                      >
+                        {copied ? 'Copied!' : 'Copy Successful Links'}
+                      </button>
+                    )}
+                    <button
+                      onClick={handleUpload}
+                      className="flex-1 py-2 px-3 bg-[#F4A0B5] hover:bg-[#F4A0B5]/90 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer"
+                    >
+                      Retry Failed
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ACTION FOOTER */}
               <div className="flex gap-3 pt-2">
-                <Link
-                  href="/admin"
-                  className="flex-1 py-3 px-4 rounded-xl border border-[rgba(0,0,0,0.08)] text-sm font-medium text-[#9E8E95] hover:text-[#3D3040] hover:bg-neutral-50 transition-all text-center flex items-center justify-center"
-                >
-                  View in Admin Panel
-                </Link>
                 <button
-                  onClick={handleRemove}
-                  className="flex-1 py-3 px-4 rounded-xl bg-[#FFF0F3] hover:bg-[#FFF0F3]/80 text-[#F4A0B5] text-sm font-semibold border border-[rgba(244,160,181,0.15)] transition-all cursor-pointer"
+                  onClick={handleClearAll}
+                  disabled={isUploading}
+                  className="flex-1 py-3 px-4 rounded-xl border border-[rgba(0,0,0,0.08)] text-sm font-medium text-[#9E8E95] hover:text-[#3D3040] hover:bg-neutral-50 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Upload Another
+                  {hasUploadFinished ? 'Clear & Start New' : 'Cancel'}
                 </button>
+
+                {!hasUploadFinished && (
+                  <>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="flex-1 py-3 px-4 rounded-xl border border-[rgba(244,160,181,0.15)] bg-[#FFF0F3] hover:bg-[#FFF0F3]/80 text-[#F4A0B5] text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Add More
+                    </button>
+                    <button
+                      onClick={handleUpload}
+                      disabled={isUploading}
+                      className="flex-2 py-3 px-4 rounded-xl bg-[#F4A0B5] hover:bg-[#F4A0B5]/90 text-white text-sm font-semibold shadow-[0_4px_12px_rgba(244,160,181,0.2)] transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                      {isUploading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Uploading...</span>
+                        </>
+                      ) : (
+                        <span>Upload {files.filter((f) => f.status === 'idle' || f.status === 'error').length} Photos</span>
+                      )}
+                    </button>
+                  </>
+                )}
+
+                {hasUploadFinished && (
+                  <Link
+                    href="/admin"
+                    className="flex-1 py-3 px-4 rounded-xl bg-[#F4A0B5] hover:bg-[#F4A0B5]/90 text-white text-sm font-semibold text-center flex items-center justify-center shadow-[0_4px_12px_rgba(244,160,181,0.15)]"
+                  >
+                    View in Admin Panel
+                  </Link>
+                )}
               </div>
             </motion.div>
           )}
@@ -389,10 +589,8 @@ export default function UploadPage() {
                     />
                   </svg>
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider mb-1">
-                      Upload Error
-                    </h4>
-                    <p className="text-xs font-light text-[#3D3040] leading-relaxed">{error}</p>
+                    <h4 className="text-xs font-bold uppercase tracking-wider mb-1">Upload Notice</h4>
+                    <p className="text-xs font-light text-[#3D3040] leading-relaxed whitespace-pre-line">{error}</p>
                   </div>
                 </div>
               </motion.div>

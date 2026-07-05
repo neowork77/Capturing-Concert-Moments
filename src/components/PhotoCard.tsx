@@ -10,9 +10,10 @@ interface PhotoCardProps {
   loading?: 'eager' | 'lazy';
   sizes?: string;
   onDelete?: (photo: Photo) => void;
+  className?: string;
 }
 
-export default function PhotoCard({ photo, index, priority = false, loading, sizes, onDelete }: PhotoCardProps) {
+export default function PhotoCard({ photo, index, priority = false, loading, sizes, onDelete, className }: PhotoCardProps) {
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -22,7 +23,7 @@ export default function PhotoCard({ photo, index, priority = false, loading, siz
   };
 
   return (
-    <div className="masonry-item animate-fade-in-card" style={{ animationDelay: `${index * 0.04}s` }}>
+    <div className={className ?? "masonry-item animate-fade-in-card"} style={{ animationDelay: `${index * 0.04}s` }}>
       <div className="relative rounded-2xl overflow-hidden cursor-pointer border border-[rgba(0,0,0,0.05)] bg-white group">
         <div className="relative overflow-hidden rounded-2xl">
           <Image

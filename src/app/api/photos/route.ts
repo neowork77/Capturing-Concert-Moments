@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db/db';
 import { images } from '@/db/schema';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { Photo } from '@/data/photos';
 
 export const dynamic = 'force-dynamic';
@@ -51,3 +51,38 @@ export async function GET() {
     );
   }
 }
+
+export async function PUT(request: Request) {
+  try {
+    const { ids } = await request.json();
+
+    if (!Array.isArray(ids)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid request payload: ids must be an array.' },
+        { status: 400 }
+      );
+    }
+
+    // Set timestamps in descending order starting from now to preserve newest-first sorting
+    const now = Math.floor(Date.now() / 1000);
+
+    for (let i = 0; i < ids.length; i++) {
+      const id = parseInt(ids[i], 10);
+      if (!isNaN(id)) {
+        await db
+          .update(images)
+          .set({ createdAt: now - i })
+          .where(eq(images.id, id));
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Error reordering photos:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}
+

@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Photo } from '@/data/photos';
 import PhotoCard from './PhotoCard';
 import ScrollReveal from './ScrollReveal';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const PHOTOS_PER_PAGE = 12;
 
@@ -20,6 +21,73 @@ export default function Gallery({ isAdmin = false }: GalleryProps) {
   const [photoToDelete, setPhotoToDelete] = useState<Photo | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Drag and drop sorting state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+    setDragOverIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const absoluteDragIndex = (currentPage - 1) * PHOTOS_PER_PAGE + draggedIndex;
+    const absoluteTargetIndex = (currentPage - 1) * PHOTOS_PER_PAGE + targetIndex;
+
+    const reorderedPhotos = [...photos];
+    const [draggedItem] = reorderedPhotos.splice(absoluteDragIndex, 1);
+    reorderedPhotos.splice(absoluteTargetIndex, 0, draggedItem);
+
+    // Optimistically update local photos state
+    setPhotos(reorderedPhotos);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+
+    // Persist new sequence order in DB
+    try {
+      setSaveStatus('saving');
+      const response = await fetch('/api/photos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: reorderedPhotos.map((p) => p.id) }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } else {
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 4000);
+      }
+    } catch (error) {
+      console.error('Failed to save photo order:', error);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 4000);
+    }
+  };
 
   const handleConfirmDelete = async () => {
     if (!photoToDelete) return;
@@ -94,13 +162,58 @@ export default function Gallery({ isAdmin = false }: GalleryProps) {
   return (
     <section id="gallery" className="relative py-12 sm:py-32 px-6 sm:px-8 lg:px-12 max-w-6xl mx-auto">
       {/* Section Header */}
-      <ScrollReveal className="text-center mb-8 sm:mb-10">
+      <ScrollReveal className="text-center mb-8 sm:mb-10 relative">
+        {isAdmin && (
+          <div className="absolute top-0 right-0 left-0 flex justify-center -mt-8">
+            <AnimatePresence mode="wait">
+              {saveStatus === 'saving' && (
+                <motion.div
+                  key="saving"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-white border border-[rgba(0,0,0,0.05)] shadow-sm rounded-full text-xs font-medium text-[#9E8E95]"
+                >
+                  <div className="w-3.5 h-3.5 border-2 border-[#F4A0B5]/20 border-t-[#F4A0B5] rounded-full animate-spin" />
+                  <span>กำลังบันทึกลำดับรูปภาพ...</span>
+                </motion.div>
+              )}
+              {saveStatus === 'saved' && (
+                <motion.div
+                  key="saved"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-[#C5E8D8]/20 border border-[rgba(78,184,134,0.15)] shadow-sm rounded-full text-xs font-semibold text-[#348861]"
+                >
+                  <span>✓ บันทึกลำดับสำเร็จ!</span>
+                </motion.div>
+              )}
+              {saveStatus === 'error' && (
+                <motion.div
+                  key="error"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-[#FFF0F3] border border-[rgba(244,160,181,0.2)] shadow-sm rounded-full text-xs font-semibold text-[#F4A0B5]"
+                >
+                  <span>⚠ เกิดข้อผิดพลาดในการบันทึก</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
         <span className="inline-block text-xs font-medium tracking-[0.2em] uppercase text-[#F4A0B5] mb-4">
           ✦ Portfolio
         </span>
         <h2 className="font-display text-3xl sm:text-5xl lg:text-6xl font-bold text-[#3D3040] mb-5">
           Latest Shots
         </h2>
+        {isAdmin && (
+          <p className="text-xs text-[#F4A0B5] font-semibold mb-4 animate-pulse">
+            💡 คุณสามารถคลิกค้างที่รูปภาพเพื่อลากจัดเรียงลำดับรูปภาพได้ทันที
+          </p>
+        )}
         <p className="text-[#9E8E95] max-w-lg mx-auto text-sm sm:text-base font-light leading-relaxed">
           ตัวอย่างรูปภาพผลงานการถ่ายภาพด้วยกล้อง Ricoh GRIIIx ถ่ายทอดโทนภาพและบรรยากาศจริงจากหน้างาน
         </p>
@@ -190,20 +303,57 @@ export default function Gallery({ isAdmin = false }: GalleryProps) {
             ))}
           </div>
 
-          {/* Desktop: Masonry Grid */}
-          <div className="hidden sm:block masonry-grid min-h-[1000px] lg:min-h-[1200px]">
-            {paginatedPhotos.map((photo, index) => (
-              <PhotoCard
-                key={`desktop-${photo.id}`}
-                photo={photo}
-                index={index}
-                priority={index < 4}
-                loading={index < 6 ? 'eager' : 'lazy'}
-                sizes="(min-width: 1024px) 33vw, 50vw"
-                onDelete={isAdmin ? setPhotoToDelete : undefined}
-              />
-            ))}
-          </div>
+          {/* Desktop: Grid or Masonry */}
+          {isAdmin ? (
+            /* Admin Layout: Stable CSS Grid with Drag and Drop Reordering */
+            <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 min-h-[600px] items-start">
+              {paginatedPhotos.map((photo, index) => (
+                <div
+                  key={`desktop-${photo.id}`}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDragEnd={handleDragEnd}
+                  onDrop={(e) => handleDrop(e, index)}
+                  className={`transition-all duration-300 relative border-2 border-transparent select-none cursor-grab active:cursor-grabbing ${
+                    draggedIndex === index ? 'opacity-30 scale-95' : ''
+                  } ${
+                    dragOverIndex === index ? 'border-[#F4A0B5] rounded-3xl scale-105 bg-[#FFF5F7]/30 shadow-md' : ''
+                  }`}
+                >
+                  {/* Grip drag handle icon overlay */}
+                  <div className="absolute top-3 left-3 z-10 w-8 h-8 rounded-full bg-white/90 text-[#9E8E95] shadow-md flex items-center justify-center hover:text-[#3D3040] transition-colors pointer-events-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6h16.5" />
+                    </svg>
+                  </div>
+                  <PhotoCard
+                    photo={photo}
+                    index={index}
+                    priority={index < 4}
+                    loading={index < 6 ? 'eager' : 'lazy'}
+                    sizes="(min-width: 1024px) 25vw, 50vw"
+                    onDelete={setPhotoToDelete}
+                    className="w-full animate-fade-in-card"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* Public Layout: Beautiful dynamic Masonry Grid */
+            <div className="hidden sm:block masonry-grid min-h-[1000px] lg:min-h-[1200px]">
+              {paginatedPhotos.map((photo, index) => (
+                <PhotoCard
+                  key={`desktop-${photo.id}`}
+                  photo={photo}
+                  index={index}
+                  priority={index < 4}
+                  loading={index < 6 ? 'eager' : 'lazy'}
+                  sizes="(min-width: 1024px) 33vw, 50vw"
+                />
+              ))}
+            </div>
+          )}
 
           {paginatedPhotos.length === 0 && (
             <div className="text-center py-24">
