@@ -19,7 +19,16 @@ export const getThailandDateDetails = () => {
 };
 
 export const useThailandDate = () => {
-  const [dateDetails, setDateDetails] = useState(getThailandDateDetails);
+  // 🌟 แก้ไขจุดที่ 1: ตั้งค่าเริ่มต้นเป็น undefined เสมอ เพื่อไม่ให้จำค่าเก่าจาก Server / Build Time
+  const [dateDetails, setDateDetails] = useState<{
+    thYear: number | undefined;
+    thMonth: number | undefined;
+    thDay: number | undefined;
+  }>({
+    thYear: undefined,
+    thMonth: undefined,
+    thDay: undefined,
+  });
 
   const updateDate = useCallback(() => {
     setDateDetails(prev => {
@@ -36,6 +45,9 @@ export const useThailandDate = () => {
   }, []);
 
   useEffect(() => {
+    // 🌟 แก้ไขจุดที่ 2: สั่งให้ดึงเวลาปัจจุบันของไทยทันทีที่ Component โหลดเสร็จบน Browser (Client-side)
+    updateDate();
+
     // 1. ตรวจจับการสลับแท็บหรือกลับมาที่แอป (Visibility Change)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -56,7 +68,7 @@ export const useThailandDate = () => {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
+      window.addEventListener('focus', handleFocus);
       clearInterval(intervalId);
     };
   }, [updateDate]);
