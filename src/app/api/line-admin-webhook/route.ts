@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { db } from '@/db/db';
+import { adminSessions } from '@/db/schema';
 import { getAllScheduleRecords, ScheduleRecord } from '@/lib/schedule-service';
 import { getAllBookings, createBooking, confirmOrCreateBooking, cancelPendingBookingIfExists, BookingRecord } from '@/lib/booking-service';
 import { getAdminSession, setAdminSession, clearAdminSession, pushLineMessage, registerAdminUserId, DraftBookingData } from '@/lib/admin-session-service';
@@ -165,6 +167,71 @@ async function startAdminBookingConfirmation(
   }
 }
 
+export async function GET() {
+  const hasAdminSecret = Boolean(process.env.LINE_ADMIN_CHANNEL_SECRET);
+  const hasAdminToken = Boolean(process.env.LINE_ADMIN_CHANNEL_ACCESS_TOKEN);
+  const hasCustomerSecret = Boolean(process.env.LINE_CHANNEL_SECRET);
+  const hasCustomerToken = Boolean(process.env.LINE_CHANNEL_ACCESS_TOKEN);
+  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+
+  let dbStatus = 'untested';
+  let adminSessionsTable = 'unknown';
+
+  try {
+    await db.select().from(adminSessions).limit(1);
+    dbStatus = 'connected';
+    adminSessionsTable = 'ready';
+  } catch (err: any) {
+    dbStatus = 'error';
+    adminSessionsTable = `error: ${err.message}`;
+  }
+
+  const warnings: string[] = [];
+  if (!hasAdminToken && !hasCustomerToken) {
+    warnings.push('❌ LINE_ADMIN_CHANNEL_ACCESS_TOKEN is missing. Bot cannot reply to messages.');
+  } else if (!hasAdminToken) {
+    warnings.push('⚠️ LINE_ADMIN_CHANNEL_ACCESS_TOKEN is not set; falling back to LINE_CHANNEL_ACCESS_TOKEN. If Admin Bot is on a separate LINE OA, replies will fail!');
+  }
+
+  if (!hasAdminSecret && !hasCustomerSecret) {
+    warnings.push('❌ LINE_ADMIN_CHANNEL_SECRET is missing. Webhook signature verification will be skipped or fail.');
+  } else if (!hasAdminSecret) {
+    warnings.push('⚠️ LINE_ADMIN_CHANNEL_SECRET is not set; falling back to LINE_CHANNEL_SECRET. If Admin Bot is on a separate LINE OA, signature verification (401) will fail!');
+  }
+
+  if (dbStatus !== 'connected') {
+    warnings.push(`❌ Database connection issue: ${adminSessionsTable}. Run 'npx drizzle-kit push' to sync schema.`);
+  }
+
+  return NextResponse.json({
+    status: 'online',
+    endpoint: '/api/line-admin-webhook',
+    timestamp: new Date().toISOString(),
+    envCheck: {
+      LINE_ADMIN_CHANNEL_ACCESS_TOKEN: hasAdminToken ? '✅ Configured' : (hasCustomerToken ? '⚠️ Using LINE_CHANNEL_ACCESS_TOKEN fallback' : '❌ Missing'),
+      LINE_ADMIN_CHANNEL_SECRET: hasAdminSecret ? '✅ Configured' : (hasCustomerSecret ? '⚠️ Using LINE_CHANNEL_SECRET fallback' : '❌ Missing'),
+      LINE_CHANNEL_ACCESS_TOKEN: hasCustomerToken ? '✅ Configured' : '❌ Missing',
+      LINE_CHANNEL_SECRET: hasCustomerSecret ? '✅ Configured' : '❌ Missing',
+      DATABASE_URL: hasDatabaseUrl ? '✅ Configured' : '❌ Missing',
+    },
+    database: {
+      status: dbStatus,
+      adminSessionsTable: adminSessionsTable,
+    },
+    diagnostics: {
+      isHealthy: warnings.length === 0,
+      warnings: warnings.length > 0 ? warnings : ['✅ All configurations and database connections are ready!'],
+    },
+    lineSettingsChecklist: [
+      '1. LINE Developers Console -> Messaging API -> Webhook URL set to https://<your-domain>/api/line-admin-webhook',
+      '2. LINE Developers Console -> Messaging API -> "Use webhook" toggled ON',
+      '3. LINE Official Account Manager (manager.line.biz) -> Settings -> Response settings -> Response mode: Bot (บอท)',
+      '4. LINE Official Account Manager -> Settings -> Response settings -> Webhook: Enabled (เปิดใช้งาน)',
+      '5. LINE Official Account Manager -> Settings -> Response settings -> Auto-response: Disabled (ปิด)',
+    ]
+  }, { status: 200 });
+}
+
 export async function POST(req: Request) {
   try {
     const bodyText = await req.text();
@@ -175,7 +242,7 @@ export async function POST(req: Request) {
     const channelSecret = process.env.LINE_ADMIN_CHANNEL_SECRET || process.env.LINE_CHANNEL_SECRET;
     const signature = req.headers.get('x-line-signature');
     if (channelSecret && !verifyLineSignature(bodyText, signature, channelSecret)) {
-      console.error('❌ Signature Verification Failed for LINE Admin Webhook');
+      console.error('❌ Signature Verification Failed for LINE Admin Webhook. Used secret:', process.env.LINE_ADMIN_CHANNEL_SECRET ? 'LINE_ADMIN_CHANNEL_SECRET' : 'FALLBACK LINE_CHANNEL_SECRET');
       return NextResponse.json({ error: 'Unauthorized signature' }, { status: 401 });
     }
 
@@ -184,24 +251,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Verify Success' }, { status: 200 });
     }
 
-    const event = body.events[0];
-    const replyToken = event.replyToken;
-    const userId = event.source?.userId;
+    for (const event of body.events) {
+      const replyToken = event.replyToken;
+      const userId = event.source?.userId;
 
-    if (!replyToken || replyToken === '00000000000000000000000000000000' || replyToken === 'ffffffffffffffffffffffffffffffff') {
-      return NextResponse.json({ message: 'Verify Success' }, { status: 200 });
-    }
+      if (!replyToken || replyToken === '00000000000000000000000000000000' || replyToken === 'ffffffffffffffffffffffffffffffff') {
+        continue;
+      }
 
-    if (event.type !== 'message' || event.message?.type !== 'text') {
-      return NextResponse.json({ message: 'Event ignored' }, { status: 200 });
-    }
+      if (event.type === 'follow') {
+        if (userId) {
+          await registerAdminUserId(userId);
+        }
+        const welcomeMsg = `👋 สวัสดีค่ะ! Ren เลขาจองคิวยินดีต้อนรับค่ะ ✨\n\nระบบได้ลงทะเบียนบัญชี LINE ของคุณเป็นแอดมินเรียบร้อยแล้วค่ะ\n\nคุณสามารถกดปุ่มเมนูด้านล่าง หรือพิมพ์ 'เช็ก' / 'คิวรออนุมัติ' เพื่อจัดการคิวได้เลยนะคะ 👇`;
+        await replyToLine(replyToken, {
+          type: 'text',
+          text: welcomeMsg,
+          quickReply: ADMIN_MAIN_QUICK_REPLY,
+        });
+        continue;
+      }
 
-    const userMessage: string = event.message.text.trim();
-    if (!userMessage) return NextResponse.json({ message: 'OK' }, { status: 200 });
+      if (event.type !== 'message' || event.message?.type !== 'text') {
+        continue;
+      }
 
-    if (userId) {
-      await registerAdminUserId(userId);
-    }
+      const userMessage: string = event.message.text.trim();
+      if (!userMessage) continue;
+
+      if (userId) {
+        await registerAdminUserId(userId);
+      }
 
     // =========================================================================
     // STEP 0: ตรวจสอบ Admin Interactive Session (หากอยู่ระหว่างขั้นตอนเลือกการชำระเงิน/ระบุจำนวนมัดจำ)
@@ -1262,8 +1342,11 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({ message: 'OK' }, { status: 200 });
     }
-  } catch (error: any) {
-    console.error('❌ LINE Admin Webhook Error:', error.message || error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
+
+  return NextResponse.json({ message: 'OK' }, { status: 200 });
+} catch (error: any) {
+  console.error('❌ LINE Admin Webhook Error:', error.message || error);
+  return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+}
 }
