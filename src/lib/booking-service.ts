@@ -24,7 +24,7 @@ export interface BookingRecord {
  * Fetch all booking records ordered by newest first
  */
 export async function getAllBookings(): Promise<BookingRecord[]> {
-  const records = await db.select().from(bookings).orderBy(desc(bookings.createdAt));
+  const records = await db.select().from(bookings).orderBy(desc(bookings.id));
   return records as BookingRecord[];
 }
 

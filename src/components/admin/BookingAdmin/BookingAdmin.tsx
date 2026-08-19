@@ -10,7 +10,9 @@ export default function BookingAdmin() {
     cameras,
     schedules,
     isLoading,
+    isRefreshing,
     errorMessage,
+    refreshData,
     step,
     selectedEvent,
     selectedCamera,
@@ -62,7 +64,30 @@ export default function BookingAdmin() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={refreshData}
+            disabled={isRefreshing}
+            className="py-2.5 px-4 rounded-xl bg-white border border-[rgba(0,0,0,0.08)] hover:bg-[#FFFBFC] text-[#3D3040] text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer flex items-center gap-2 disabled:opacity-60"
+            title="ดึงข้อมูลรายการจองล่าสุดจาก Database"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              className={`w-4 h-4 text-[#F4A0B5] ${isRefreshing ? 'animate-spin' : ''}`}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+              />
+            </svg>
+            <span>{isRefreshing ? 'กำลังโหลด...' : 'รีเฟรชคิวล่าสุด'}</span>
+          </button>
+
           <button
             onClick={openBotModal}
             className="py-2.5 px-4 rounded-xl bg-white border border-[#F4A0B5]/40 hover:bg-[#FFFBFC] text-[#3D3040] text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer flex items-center gap-2"

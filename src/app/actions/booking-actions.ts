@@ -7,6 +7,7 @@ import {
   deleteBooking,
   BookingRecord,
 } from '@/lib/booking-service';
+import { revalidatePath } from 'next/cache';
 
 export async function fetchBookingsAction(): Promise<{ success: boolean; data?: BookingRecord[]; message?: string }> {
   try {
@@ -38,6 +39,8 @@ export async function createBookingAction(formData: {
       return { success: false, message: 'กรุณากรอกข้อมูลวันที่ ชื่องาน ชื่อลูกค้า เบอร์โทร และเวลาให้ครบถ้วน' };
     }
     const result = await createBooking(formData);
+    revalidatePath('/admin');
+    revalidatePath('/admin/bookings');
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, message: error.message || 'เกิดข้อผิดพลาดในการบันทึกการจอง' };
@@ -57,6 +60,8 @@ export async function updateBookingStatusAction(
     if (!success) {
       return { success: false, message: 'ไม่พบรายการจองที่ต้องการอัปเดต' };
     }
+    revalidatePath('/admin');
+    revalidatePath('/admin/bookings');
     return { success: true };
   } catch (error: any) {
     return { success: false, message: error.message || 'ไม่สามารถอัปเดตสถานะการจองได้' };
@@ -74,6 +79,8 @@ export async function updatePaymentStatusAction(
     if (!success) {
       return { success: false, message: 'ไม่พบรายการจองที่ต้องการอัปเดต' };
     }
+    revalidatePath('/admin');
+    revalidatePath('/admin/bookings');
     return { success: true };
   } catch (error: any) {
     return { success: false, message: error.message || 'ไม่สามารถอัปเดตสถานะการชำระเงินได้' };
@@ -83,6 +90,8 @@ export async function updatePaymentStatusAction(
 export async function deleteBookingAction(id: number): Promise<{ success: boolean; message?: string }> {
   try {
     await deleteBooking(id);
+    revalidatePath('/admin');
+    revalidatePath('/admin/bookings');
     return { success: true };
   } catch (error: any) {
     return { success: false, message: error.message || 'ไม่สามารถลบรายการจองได้' };

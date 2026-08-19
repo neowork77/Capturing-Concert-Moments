@@ -67,6 +67,7 @@ export function useBookingAdmin() {
     remainingAmount: 0,
   });
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const loadData = async (forceRefresh = false) => {
@@ -74,42 +75,36 @@ export function useBookingAdmin() {
     const cachedCameras = getAdminCache<CameraRecord[]>(CACHE_KEYS.CAMERAS_ACTIVE);
     const cachedSchedules = getAdminCache<ScheduleRecord[]>(CACHE_KEYS.SCHEDULES);
 
-    if (cachedBookings && cachedCameras && cachedSchedules && !forceRefresh) {
-      setBookings(cachedBookings);
+    // Populate from cache for instant initial render
+    if (cachedBookings && bookings.length === 0) setBookings(cachedBookings);
+    if (cachedCameras && cameras.length === 0) {
       setCameras(cachedCameras);
-      if (cachedCameras.length > 0) {
-        setFormData(prev => ({
-          ...prev,
-          cameraType: prev.cameraType || cachedCameras[0].name,
-        }));
-      }
-      setSchedules(cachedSchedules);
-      setIsLoading(false);
-      return;
+      setFormData(prev => ({
+        ...prev,
+        cameraType: prev.cameraType || cachedCameras[0].name,
+      }));
     }
+    if (cachedSchedules && schedules.length === 0) setSchedules(cachedSchedules);
 
-    if (!cachedBookings) setIsLoading(true);
+    if (!cachedBookings && bookings.length === 0) setIsLoading(true);
+    if (forceRefresh) setIsRefreshing(true);
     setErrorMessage(null);
 
-    const [bookingRes, cameraRes, scheduleRes] = await Promise.all([
-      (forceRefresh || !cachedBookings) ? fetchBookingsAction() : Promise.resolve(null),
-      (forceRefresh || !cachedCameras) ? fetchActiveCamerasAction() : Promise.resolve(null),
-      (forceRefresh || !cachedSchedules) ? fetchSchedulesAction() : Promise.resolve(null),
-    ]);
+    try {
+      const [bookingRes, cameraRes, scheduleRes] = await Promise.all([
+        fetchBookingsAction(),
+        fetchActiveCamerasAction(),
+        fetchSchedulesAction(),
+      ]);
 
-    if (bookingRes) {
-      if (bookingRes.success && bookingRes.data) {
+      if (bookingRes?.success && bookingRes.data) {
         setBookings(bookingRes.data);
         setAdminCache(CACHE_KEYS.BOOKINGS, bookingRes.data);
-      } else {
+      } else if (bookingRes && !bookingRes.success && bookings.length === 0) {
         setErrorMessage(bookingRes.message || 'ไม่สามารถโหลดข้อมูลรายการจองได้');
       }
-    } else if (cachedBookings) {
-      setBookings(cachedBookings);
-    }
 
-    if (cameraRes) {
-      if (cameraRes.success && cameraRes.data) {
+      if (cameraRes?.success && cameraRes.data) {
         setCameras(cameraRes.data);
         setAdminCache(CACHE_KEYS.CAMERAS_ACTIVE, cameraRes.data);
         if (cameraRes.data.length > 0) {
@@ -119,26 +114,17 @@ export function useBookingAdmin() {
           }));
         }
       }
-    } else if (cachedCameras) {
-      setCameras(cachedCameras);
-      if (cachedCameras.length > 0) {
-        setFormData(prev => ({
-          ...prev,
-          cameraType: prev.cameraType || cachedCameras[0].name,
-        }));
-      }
-    }
 
-    if (scheduleRes) {
-      if (scheduleRes.success && scheduleRes.data) {
+      if (scheduleRes?.success && scheduleRes.data) {
         setSchedules(scheduleRes.data);
         setAdminCache(CACHE_KEYS.SCHEDULES, scheduleRes.data);
       }
-    } else if (cachedSchedules) {
-      setSchedules(cachedSchedules);
+    } catch (err: any) {
+      console.error('Error fetching admin bookings data:', err);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
-
-    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -425,6 +411,13 @@ export function useBookingAdmin() {
 
     if (res.success) {
       setIsModalOpen(false);
+      if (formData.eventName) {
+        setSelectedEvent(formData.eventName.trim());
+        setSelectedCamera(null);
+        setSearchQuery('');
+        setStatusFilter('all');
+        setStep('bookings');
+      }
       await loadData(true);
     } else {
       alert(res.message || 'เกิดข้อผิดพลาดในการบันทึกการจอง');
@@ -452,7 +445,9 @@ export function useBookingAdmin() {
     cameras,
     schedules,
     isLoading,
+    isRefreshing,
     errorMessage,
+    refreshData: () => loadData(true),
 
     // Step navigation
     step,
