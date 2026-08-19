@@ -64,6 +64,7 @@ export function useBookingAdmin() {
     notes: '',
     paymentStatus: 'unpaid' as 'unpaid' | 'deposit' | 'paid',
     depositAmount: 0,
+    remainingAmount: 0,
   });
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -335,24 +336,49 @@ export function useBookingAdmin() {
   const handlePaymentStatusChange = async (
     id: number,
     newPaymentStatus: 'unpaid' | 'deposit' | 'paid',
-    customDepositAmount?: number
+    customDepositAmount?: number,
+    customRemainingAmount?: number
   ) => {
     let depositAmt = customDepositAmount;
-    if (newPaymentStatus === 'deposit' && depositAmt === undefined) {
-      const current = bookings.find(b => b.id === id);
-      const input = prompt('กรอกจำนวนเงินมัดจำ (บาท):', String(current?.depositAmount || 500));
-      if (input !== null) {
-        const parsed = parseInt(input, 10);
-        depositAmt = isNaN(parsed) ? 0 : parsed;
+    let remainingAmt = customRemainingAmount;
+    const current = bookings.find(b => b.id === id);
+
+    if (newPaymentStatus === 'deposit') {
+      if (depositAmt === undefined) {
+        const inputDeposit = prompt('กรอกจำนวนเงินมัดจำ (บาท):', String(current?.depositAmount || 500));
+        if (inputDeposit !== null) {
+          const parsed = parseInt(inputDeposit, 10);
+          depositAmt = isNaN(parsed) ? 0 : parsed;
+        } else {
+          return;
+        }
       }
+      if (remainingAmt === undefined) {
+        const inputRemaining = prompt('กรอกจำนวนเงินที่ต้องเก็บเพิ่มอีก (บาท):', String(current?.remainingAmount || 0));
+        if (inputRemaining !== null) {
+          const parsed = parseInt(inputRemaining, 10);
+          remainingAmt = isNaN(parsed) ? 0 : parsed;
+        } else {
+          remainingAmt = current?.remainingAmount || 0;
+        }
+      }
+    } else if (newPaymentStatus === 'paid') {
+      depositAmt = depositAmt ?? (current?.depositAmount || 0);
+      remainingAmt = 0;
     } else if (newPaymentStatus === 'unpaid') {
       depositAmt = 0;
+      remainingAmt = 0;
     }
 
-    const res = await updatePaymentStatusAction(id, newPaymentStatus, depositAmt);
+    const res = await updatePaymentStatusAction(id, newPaymentStatus, depositAmt, remainingAmt);
     if (res.success) {
       setBookings(prev => {
-        const next = prev.map(b => (b.id === id ? { ...b, paymentStatus: newPaymentStatus, depositAmount: depositAmt ?? b.depositAmount } : b));
+        const next = prev.map(b => (b.id === id ? {
+          ...b,
+          paymentStatus: newPaymentStatus,
+          depositAmount: depositAmt ?? b.depositAmount,
+          remainingAmount: remainingAmt ?? b.remainingAmount,
+        } : b));
         setAdminCache(CACHE_KEYS.BOOKINGS, next);
         return next;
       });
@@ -384,6 +410,7 @@ export function useBookingAdmin() {
       notes: '',
       paymentStatus: 'unpaid',
       depositAmount: 0,
+      remainingAmount: 0,
     });
     setIsModalOpen(true);
   };
@@ -406,7 +433,14 @@ export function useBookingAdmin() {
   };
 
   const copyConfirmationText = (b: BookingRecord) => {
-    const depositText = b.paymentStatus === 'deposit' ? `\nมัดจำแล้ว : ${b.depositAmount ? b.depositAmount.toLocaleString() : 0} บาท` : b.paymentStatus === 'paid' ? '\nชำระเงิน : จ่ายเต็มจำนวนเรียบร้อย' : '';
+    const remainingText = b.paymentStatus === 'deposit' && b.remainingAmount && b.remainingAmount > 0
+      ? ` (ยอดเก็บเพิ่มอีก: ${b.remainingAmount.toLocaleString()} บาท)`
+      : '';
+    const depositText = b.paymentStatus === 'deposit'
+      ? `\nมัดจำแล้ว : ${b.depositAmount ? b.depositAmount.toLocaleString() : 0} บาท${remainingText}`
+      : b.paymentStatus === 'paid'
+      ? '\nชำระเงิน : จ่ายเต็มจำนวนเรียบร้อย'
+      : '';
     const text = `#${b.eventName}\nวันที่ : ${b.date}\nเวลา : ${b.timeSlot} น.\n📷 กล้อง : ${b.cameraType || '-'}\nK.${b.customerName} ${b.customerPhone}\nชื่อไลน์ : ${b.lineDisplayName || '-'}\nสถานะ : ${b.status === 'confirmed' ? 'คอนเฟิร์มคิวแล้วเรียบร้อยค่ะ ✨' : 'รอคอนเฟิร์มคิว'}${depositText}`;
     navigator.clipboard.writeText(text);
     setCopiedId(b.id);

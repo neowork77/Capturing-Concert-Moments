@@ -16,6 +16,7 @@ interface BookingFormProps {
     notes: string;
     paymentStatus: 'unpaid' | 'deposit' | 'paid';
     depositAmount: number;
+    remainingAmount: number;
   };
   setFormData: React.Dispatch<React.SetStateAction<{
     date: string;
@@ -28,6 +29,7 @@ interface BookingFormProps {
     notes: string;
     paymentStatus: 'unpaid' | 'deposit' | 'paid';
     depositAmount: number;
+    remainingAmount: number;
   }>>;
   isSaving: boolean;
   handleCreateBooking: (e: React.FormEvent) => void;
@@ -292,7 +294,15 @@ export default function BookingForm({
                   <button
                     key={val}
                     type="button"
-                    onClick={() => setFormData({ ...formData, paymentStatus: val })}
+                    onClick={() => {
+                      if (val === 'unpaid') {
+                        setFormData({ ...formData, paymentStatus: val, depositAmount: 0, remainingAmount: 0 });
+                      } else if (val === 'paid') {
+                        setFormData({ ...formData, paymentStatus: val, remainingAmount: 0 });
+                      } else {
+                        setFormData({ ...formData, paymentStatus: val });
+                      }
+                    }}
                     className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                       formData.paymentStatus === val
                         ? val === 'unpaid'
@@ -309,17 +319,47 @@ export default function BookingForm({
               </div>
             </div>
 
-            {/* Deposit Amount Input */}
-            {formData.paymentStatus !== 'unpaid' && (
+            {/* Deposit & Remaining Amount Inputs */}
+            {formData.paymentStatus === 'deposit' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#9E8E95] uppercase mb-1">
+                    💵 จำนวนเงินมัดจำ (บาท)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="เช่น 500"
+                    value={formData.depositAmount || ''}
+                    onChange={e => setFormData({ ...formData, depositAmount: parseInt(e.target.value, 10) || 0 })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-[rgba(0,0,0,0.1)] text-sm text-[#3D3040] focus:outline-none focus:ring-2 focus:ring-[#F4A0B5]/40"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#9E8E95] uppercase mb-1">
+                    💵 ยอดต้องเก็บเพิ่มอีก (บาท)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="เช่น 1500"
+                    value={formData.remainingAmount || ''}
+                    onChange={e => setFormData({ ...formData, remainingAmount: parseInt(e.target.value, 10) || 0 })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-[rgba(0,0,0,0.1)] text-sm text-[#3D3040] focus:outline-none focus:ring-2 focus:ring-[#F4A0B5]/40"
+                  />
+                </div>
+              </div>
+            )}
+
+            {formData.paymentStatus === 'paid' && (
               <div>
                 <label className="block text-xs font-bold text-[#9E8E95] uppercase mb-1">
-                  💵 จำนวนเงินมัดจำ / ชำระแล้ว (บาท)
+                  💵 จำนวนเงินที่ชำระแล้ว (บาท)
                 </label>
                 <input
                   type="number"
-                  placeholder="เช่น 500"
+                  placeholder="เช่น 2000"
                   value={formData.depositAmount || ''}
-                  onChange={e => setFormData({ ...formData, depositAmount: parseInt(e.target.value, 10) || 0 })}
+                  onChange={e => setFormData({ ...formData, depositAmount: parseInt(e.target.value, 10) || 0, remainingAmount: 0 })}
                   className="w-full px-4 py-2.5 rounded-xl border border-[rgba(0,0,0,0.1)] text-sm text-[#3D3040] focus:outline-none focus:ring-2 focus:ring-[#F4A0B5]/40"
                 />
               </div>

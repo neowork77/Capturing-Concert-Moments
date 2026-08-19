@@ -503,7 +503,7 @@ export default function BookingAdmin() {
                                       ? 'bg-amber-400 text-white shadow-xs'
                                       : 'text-neutral-400 hover:text-amber-600'
                                   }`}
-                                  title="คลิกเพื่อแก้ไขจำนวนมัดจำ"
+                                  title="คลิกเพื่อแก้ไขจำนวนมัดจำและยอดเก็บเพิ่ม"
                                 >
                                   🟡 มัดจำ {b.paymentStatus === 'deposit' && b.depositAmount ? `(${b.depositAmount.toLocaleString()}฿)` : ''}
                                 </button>
@@ -518,6 +518,12 @@ export default function BookingAdmin() {
                                   ✅ จ่ายเต็ม
                                 </button>
                               </div>
+                              {b.paymentStatus === 'deposit' && b.remainingAmount && b.remainingAmount > 0 ? (
+                                <div className="text-[10px] font-bold text-amber-600 mt-1 flex items-center justify-center gap-1">
+                                  <span>💵 ต้องเก็บเพิ่ม:</span>
+                                  <span className="font-mono">{b.remainingAmount.toLocaleString()} ฿</span>
+                                </div>
+                              ) : null}
                             </td>
 
                             {/* Actions & Copy Button */}

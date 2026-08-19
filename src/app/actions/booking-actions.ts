@@ -29,6 +29,7 @@ export async function createBookingAction(formData: {
   status?: 'pending' | 'confirmed' | 'cancelled';
   paymentStatus?: 'unpaid' | 'deposit' | 'paid';
   depositAmount?: number;
+  remainingAmount?: number;
   notes?: string;
 }): Promise<{ success: boolean; data?: BookingRecord; message?: string }> {
 
@@ -48,10 +49,11 @@ export async function updateBookingStatusAction(
   status: 'pending' | 'confirmed' | 'cancelled',
   notes?: string,
   paymentStatus?: 'unpaid' | 'deposit' | 'paid',
-  depositAmount?: number
+  depositAmount?: number,
+  remainingAmount?: number
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const success = await updateBookingStatus(id, status, notes, paymentStatus, depositAmount);
+    const success = await updateBookingStatus(id, status, notes, paymentStatus, depositAmount, remainingAmount);
     if (!success) {
       return { success: false, message: 'ไม่พบรายการจองที่ต้องการอัปเดต' };
     }
@@ -64,10 +66,11 @@ export async function updateBookingStatusAction(
 export async function updatePaymentStatusAction(
   id: number,
   paymentStatus: 'unpaid' | 'deposit' | 'paid',
-  depositAmount?: number
+  depositAmount?: number,
+  remainingAmount?: number
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const success = await updateBookingStatus(id, undefined, undefined, paymentStatus, depositAmount);
+    const success = await updateBookingStatus(id, undefined, undefined, paymentStatus, depositAmount, remainingAmount);
     if (!success) {
       return { success: false, message: 'ไม่พบรายการจองที่ต้องการอัปเดต' };
     }

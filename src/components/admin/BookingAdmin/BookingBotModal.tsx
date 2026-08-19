@@ -29,6 +29,7 @@ export default function BookingBotModal({
   const [status, setStatus] = useState<'pending' | 'confirmed' | 'cancelled'>('confirmed');
   const [paymentStatus, setPaymentStatus] = useState<'unpaid' | 'deposit' | 'paid'>('deposit');
   const [depositAmount, setDepositAmount] = useState<number>(500);
+  const [remainingAmount, setRemainingAmount] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
 
   const [copiedType, setCopiedType] = useState<string | null>(null);
@@ -83,7 +84,7 @@ K.${customerName || 'ชื่อลูกค้า'} ${customerPhone || '08xxxx
 ชื่อไลน์ : ${lineDisplayName || 'ไม่ระบุ'}
 สถานะ : ${status === 'confirmed' ? 'confirmed' : status === 'cancelled' ? 'cancelled' : 'pending'}
 ชำระเงิน : ${paymentStatus}
-${depositAmount > 0 ? `มัดจำ : ${depositAmount}\n` : ''}${notes ? `โน้ต : ${notes}` : ''}`.trim();
+${depositAmount > 0 ? `มัดจำ : ${depositAmount}\n` : ''}${paymentStatus === 'deposit' && remainingAmount > 0 ? `เก็บเพิ่ม : ${remainingAmount}\n` : ''}${notes ? `โน้ต : ${notes}` : ''}`.trim();
 
   const confirmationReplyText = `#${eventName || 'ชื่องาน'}
 วันที่ : ${date}
@@ -92,7 +93,7 @@ ${depositAmount > 0 ? `มัดจำ : ${depositAmount}\n` : ''}${notes ? `โ
 K.${customerName || 'ชื่อลูกค้า'} ${customerPhone || ''}
 ชื่อไลน์ : ${lineDisplayName || '-'}
 สถานะ : ${status === 'confirmed' ? 'คอนเฟิร์มคิวแล้วเรียบร้อยค่ะ ✨' : 'รอคอนเฟิร์มคิว ⏳'}
-ชำระเงิน : ${paymentStatus === 'paid' ? `ชำระเงินเต็มจำนวนเรียบร้อยค่ะ 💚 (${depositAmount ? depositAmount.toLocaleString() : 0} ฿)` : paymentStatus === 'deposit' ? `ได้รับมัดจำเรียบร้อยค่ะ 🟡 (${depositAmount ? depositAmount.toLocaleString() : 0} ฿)` : 'ยังไม่ได้ชำระ 🔴'}`;
+ชำระเงิน : ${paymentStatus === 'paid' ? `ชำระเงินเต็มจำนวนเรียบร้อยค่ะ 💚 (${depositAmount ? depositAmount.toLocaleString() : 0} ฿)` : paymentStatus === 'deposit' ? `ได้รับมัดจำเรียบร้อยค่ะ 🟡 (${depositAmount ? depositAmount.toLocaleString() : 0} ฿)${remainingAmount > 0 ? `\n💵 ยอดต้องเก็บเพิ่มอีก: ${remainingAmount.toLocaleString()} ฿` : ''}` : 'ยังไม่ได้ชำระ 🔴'}`;
 
   const copyToClipboard = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
@@ -351,17 +352,49 @@ K.${customerName || 'ชื่อลูกค้า'} ${customerPhone || ''}
                 </div>
               </div>
 
-              {/* Deposit Amount Field */}
-              {paymentStatus !== 'unpaid' && (
+              {/* Deposit & Remaining Amount Fields */}
+              {paymentStatus === 'deposit' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-[#9E8E95] uppercase mb-1">
+                      💵 จำนวนเงินมัดจำ (บาท)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="500"
+                      value={depositAmount || ''}
+                      onChange={e => setDepositAmount(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-3.5 py-2 rounded-xl border border-[rgba(0,0,0,0.1)] text-xs text-[#3D3040] focus:outline-none focus:ring-2 focus:ring-[#F4A0B5]/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#9E8E95] uppercase mb-1">
+                      💵 ยอดต้องเก็บเพิ่มอีก (บาท)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="1500"
+                      value={remainingAmount || ''}
+                      onChange={e => setRemainingAmount(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-3.5 py-2 rounded-xl border border-[rgba(0,0,0,0.1)] text-xs text-[#3D3040] focus:outline-none focus:ring-2 focus:ring-[#F4A0B5]/40"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {paymentStatus === 'paid' && (
                 <div>
                   <label className="block text-xs font-bold text-[#9E8E95] uppercase mb-1">
-                    💵 จำนวนเงินมัดจำ / ชำระแล้ว (บาท)
+                    💵 จำนวนเงินที่ชำระแล้ว (บาท)
                   </label>
                   <input
                     type="number"
-                    placeholder="500"
+                    placeholder="2000"
                     value={depositAmount || ''}
-                    onChange={e => setDepositAmount(parseInt(e.target.value, 10) || 0)}
+                    onChange={e => {
+                      setDepositAmount(parseInt(e.target.value, 10) || 0);
+                      setRemainingAmount(0);
+                    }}
                     className="w-full px-3.5 py-2 rounded-xl border border-[rgba(0,0,0,0.1)] text-xs text-[#3D3040] focus:outline-none focus:ring-2 focus:ring-[#F4A0B5]/40"
                   />
                 </div>
