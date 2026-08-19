@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { db } from '@/db/db';
 import { images } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { Photo } from '@/data/photos';
+import { verifyAdminSessionToken } from '@/lib/auth-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +56,12 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get('admin_session')?.value;
+    if (!verifyAdminSessionToken(sessionToken)) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { ids } = await request.json();
 
     if (!Array.isArray(ids)) {

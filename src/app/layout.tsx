@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Outfit } from 'next/font/google';
 import './globals.css';
+import SmoothScrolling from '@/components/common/SmoothScrolling';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -13,8 +14,6 @@ const outfit = Outfit({
   subsets: ['latin'],
   display: 'swap',
 });
-
-import SmoothScrolling from '@/components/SmoothScrolling';
 
 export const metadata: Metadata = {
   title: 'watashiwajp — รับถ่ายรูปหน้าคอนเสิร์ต',
@@ -38,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${outfit.variable} antialiased`} data-scroll-behavior="smooth">
+    <html lang="th" className={`${inter.variable} ${outfit.variable} antialiased`} data-scroll-behavior="smooth">
       <body className="min-h-screen bg-[#FFFBFC] text-[#3D3040] font-sans">
         <SmoothScrolling>
           {children}

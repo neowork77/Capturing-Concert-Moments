@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { db } from '@/db/db';
 import { images } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { deleteFromR2 } from '@/lib/r2-service';
+import { verifyAdminSessionToken } from '@/lib/auth-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +13,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get('admin_session')?.value;
+    if (!verifyAdminSessionToken(sessionToken)) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
     const numericId = parseInt(id, 10);
     

@@ -73,6 +73,15 @@ body {
   background: var(--accent);
 }
 
+/* ===== HIDE SCROLLBAR UTILITY ===== */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
 /* ===== ACCENT UTILITIES ===== */
 .text-accent {
   color: var(--accent);

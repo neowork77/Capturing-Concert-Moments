@@ -1,105 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ScrollReveal from './ScrollReveal';
-import { DaySchedule, DayStatus, TimeSlot } from '../data/schedule';
-import { useThailandDate, getThailandDateDetails } from '../hooks/useThailandDate';
-
-// 🌟 ฟังก์ชันพิเศษสำหรับดึงวันที่/เดือน/ปี ของฝั่งประเทศไทย (Asia/Bangkok) เสมอ
-// ฟังก์ชันและ Custom Hook ถูกย้ายไปที่ src/hooks/useThailandDate.ts
-
-// Helper to format date as YYYY-MM-DD
-const formatDate = (year: number, month: number, day: number) => {
-  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-};
-
-// Get data for a specific day, fallback to 'unavailable' if not set
-const getDayData = (year: number, month: number, day: number, remoteScheduleData: Record<string, DaySchedule>): DaySchedule => {
-  const dateStr = formatDate(year, month, day);
-
-  if (remoteScheduleData[dateStr]) {
-    return remoteScheduleData[dateStr];
-  }
-
-  // ค่าเริ่มต้นสำหรับวันที่ไม่ได้กำหนดใน Google Sheets จะตั้งเป็น "ไม่รับงาน" ทันที
-  return { status: 'na' as any, slots: [] };
-};
+import ScrollReveal from '@/components/common/ScrollReveal';
+import { useCalendar } from './useCalendar';
+import { getDayData, monthNames, statusColors } from './calendar.utils';
 
 export default function Calendar() {
-  // 🌟 ดึงเวลาไทยมาเช็คแบบ Real-time (ใช้ Custom Hook) เพื่อให้อัปเดตอัตโนมัติ
-  // ย้ายขึ้นมาด้านบนเพื่อให้ useEffect สามารถเข้าถึงตัวแปรเหล่านี้ได้ทันที
-  const { thYear, thMonth, thDay } = useThailandDate();
-
-  // 🌟 เริ่มต้น State ปฏิทินเป็น null เพื่อเลี่ยงปัญหา Hydration Mismatch ระหว่าง Server กับ Client (แก้ปัญหาค้างวันที่ 16 บน Vercel)
-  const [currentDate, setCurrentDate] = useState<Date | null>(null);
-  const [selectedDay, setSelectedDay] = useState<{ day: number, data: DaySchedule } | null>(null);
-  const [remoteScheduleData, setRemoteScheduleData] = useState<Record<string, DaySchedule>>({});
-  const [isLoading, setIsLoading] = useState(true);
-
-  // 🌟 ใช้ useEffect บังคับให้ตั้งค่าวันที่ปัจจุบันหลังจาก Component เมานท์บนฝั่ง Client แล้วเท่านั้น
-  useEffect(() => {
-    if (thYear !== undefined && thMonth !== undefined && thDay !== undefined) {
-      setCurrentDate(new Date(thYear, thMonth, thDay));
-    }
-  }, [thYear, thMonth, thDay]);
-
-  useEffect(() => {
-    const fetchSchedule = async () => {
-      try {
-        const res = await fetch('/api/schedule');
-        if (res.ok) {
-          const data = await res.json();
-          setRemoteScheduleData(data || {});
-        }
-      } catch (error) {
-        console.error("Failed to fetch schedule data", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchSchedule();
-  }, []);
-
-  // 🌟 ป้องกันกรณีที่ currentDate ยังเป็น null ในจังหวะโหลด SSR
-  // ให้ดึงค่าจาก Fallback หรือ useThailandDate มาใช้ชั่วคราวไปก่อน
-  const fallbackDate = new Date();
-  const year = currentDate ? currentDate.getFullYear() : (thYear !== undefined ? thYear : fallbackDate.getFullYear());
-  const month = currentDate ? currentDate.getMonth() : (thMonth !== undefined ? thMonth : fallbackDate.getMonth());
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-
-  // Adjust for Sunday start: 0 = Sun, 1 = Mon, ..., 6 = Sat
-  const startDay = firstDayOfMonth;
-
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const prefixDays = Array.from({ length: startDay }, (_, i) => i);
-
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
-  const prevMonth = () => {
-    if (year === thYear && month === thMonth) return;
-    setCurrentDate(new Date(year, month - 1, 1));
-  };
-
-  // 🌟 เช็คเดือนปัจจุบันอิงตามเวลาไทย
-  const isCurrentMonth = year === thYear && month === thMonth;
-
-  const statusColors: Record<string, string> = {
-    available: 'bg-[#4ADE80] shadow-[0_0_12px_rgba(74,222,128,0.6)]', // Green
-    booked: 'bg-[#FB7185] shadow-[0_0_12px_rgba(251,113,133,0.6)]',   // Red
-    unavailable: 'bg-[#FB7185] shadow-[0_0_12px_rgba(251,113,133,0.6)]', // Red (คิวเต็ม)
-    na: 'bg-[#D1C7CD] shadow-[0_0_12px_rgba(209,199,205,0.4)]', // Gray (ไม่รับงาน)
-  };
-
-  const handleDayClick = (day: number, data: DaySchedule) => {
-    setSelectedDay({ day, data });
-  };
+  const {
+    year,
+    month,
+    days,
+    prefixDays,
+    isCurrentMonth,
+    selectedDay,
+    setSelectedDay,
+    remoteScheduleData,
+    isLoading,
+    thDay,
+    thMonth,
+    thYear,
+    nextMonth,
+    prevMonth,
+    handleDayClick,
+  } = useCalendar();
 
   return (
     <section id="calendar" className="relative py-12 sm:py-32 px-6 sm:px-8 lg:px-12 max-w-5xl mx-auto">
@@ -172,11 +95,10 @@ export default function Calendar() {
 
             {days.map(day => {
               const dayData = getDayData(year, month, day, remoteScheduleData);
-              // 🌟 บังคับตรวจจับ "วันปัจจุบัน (Today)" โดยเทียบตามเวลาไทยครบถ้วน
               const isToday =
-                day === thDay &&       // เลขวันตรงกับวันปัจจุบันของไทย
-                month === thMonth &&   // หน้าเดือนที่แสดงอยู่ ตรงกับเดือนปัจจุบันของไทย
-                year === thYear;       // หน้าปีที่แสดงอยู่ ตรงกับปีปัจจุบันของไทย
+                day === thDay &&
+                month === thMonth &&
+                year === thYear;
 
               return (
                 <div key={day} className="aspect-square relative group">

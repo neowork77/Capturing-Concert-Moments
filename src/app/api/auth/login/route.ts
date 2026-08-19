@@ -4,7 +4,10 @@ import { createHmac } from 'crypto';
 export const dynamic = 'force-dynamic';
 
 function generateToken(username: string, password: string): string {
-  const secret = process.env.R2_SECRET_ACCESS_KEY || 'fallback-secret-key';
+  const secret = process.env.SESSION_SECRET || process.env.R2_SECRET_ACCESS_KEY;
+  if (!secret) {
+    throw new Error('SESSION_SECRET or R2_SECRET_ACCESS_KEY is required for session signing');
+  }
   return createHmac('sha256', secret)
     .update(`${username}:${password}`)
     .digest('hex');
