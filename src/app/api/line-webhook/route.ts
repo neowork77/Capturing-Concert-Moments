@@ -347,6 +347,24 @@ export async function POST(req: Request) {
 
       const isFollowEvent = event.type === 'follow';
 
+      // 0. Event Follow (เพิ่มเพื่อน / ปลดบล็อก) -> ส่งข้อความต้อนรับและรายการคอนเสิร์ต
+      if (isFollowEvent) {
+        if (userId) await clearLineUserSession(userId);
+        const greetingText = "✨ ยินดีต้อนรับค่ะ! ท่านสามารถพิมพ์คำว่า \"เช็คคิว\" หรือเลือกรอบงานด้านล่างเพื่อเช็ครอบเวลาว่างและทำรายการจองคิวได้เลยนะคะ 👇";
+        await sendAvailableEventsFlex(replyToken, greetingText);
+        return NextResponse.json({ message: 'OK' }, { status: 200 });
+      }
+
+      // 0.5 คำสั่งยกเลิก / เริ่มใหม่
+      if (userMessage === 'ยกเลิก' || userMessage === 'ยกเลิกการจอง' || userMessage === 'เริ่มใหม่' || userMessage === 'reset') {
+        if (userId) await clearLineUserSession(userId);
+        await replyToLine(replyToken, {
+          type: 'text',
+          text: 'ยกเลิกรายการเรียบร้อยค่ะ ✨\nหากต้องการจองคิวใหม่ สามารถพิมพ์คำว่า "เช็คคิว" หรือ "จองคิว" ได้เสมอนะคะ 💖'
+        });
+        return NextResponse.json({ message: 'OK' }, { status: 200 });
+      }
+
       // ------------------------------------------------------------
       // Quick Reply Options / Step Responses
       // ------------------------------------------------------------
@@ -971,12 +989,9 @@ export async function POST(req: Request) {
           return NextResponse.json({ message: 'OK' }, { status: 200 });
         }
 
-        // STEP D: Default Fallback Text
+        // STEP D: Non-command messages (ลูกค้าพิมพ์ข้อความทั่วไป หรือสนทนากับแอดมิน)
+        // -> ไม่ส่งข้อความตอบกลับอัตโนมัติ เพื่อให้แอดมินสามารถคุยกับลูกค้าได้ตามปกติโดยที่บอทไม่แทรกทุกข้อความ
         else {
-          await replyToLine(replyToken, {
-            type: 'text',
-            text: `สวัสดีค่ะ 👋 ท่านสามารถพิมพ์คำว่า "เช็คคิว" หรือ "จองคิว" เพื่อเลือกชมคอนเสิร์ตและเช็ครอบเวลาว่างได้เลยนะคะ ✨`
-          });
           return NextResponse.json({ message: 'OK' }, { status: 200 });
         }
       }
