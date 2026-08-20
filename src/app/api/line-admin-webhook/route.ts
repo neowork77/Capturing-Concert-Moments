@@ -310,20 +310,18 @@ export async function POST(req: Request) {
               draft.paymentStatus = 'unpaid';
               draft.depositAmount = 0;
               draft.remainingAmount = 0;
-              await setAdminSession(userId, 'awaiting_final_confirmation', draft);
+              await setAdminSession(userId, 'awaiting_notes', draft);
 
-              const summaryText = buildSummaryText(draft);
-              const confirmMsg = {
+              const askNotesMsg = {
                 type: 'text',
-                text: `${summaryText}\n\nกรุณากดปุ่มเพื่อยืนยันหรือยกเลิกการจองนะคะ 👇`,
+                text: `📝 จะโน้ตอะไรเพิ่มเติมไหมคะ?\n(หากมีสามารถพิมพ์ข้อความส่งได้เลย หรือกดปุ่ม "ไม่มีโน้ต" ด้านล่างนะคะ 👇)`,
                 quickReply: {
                   items: [
-                    { type: 'action', action: { type: 'message', label: '✅ ยืนยันการจอง', text: 'ยืนยันการจอง' } },
-                    { type: 'action', action: { type: 'message', label: '❌ ยกเลิกการจอง', text: 'ยกเลิกการจอง' } },
+                    { type: 'action', action: { type: 'message', label: '❌ ไม่มีโน้ต', text: 'ไม่มีโน้ต' } },
                   ]
                 }
               };
-              await replyToLine(replyToken, confirmMsg);
+              await replyToLine(replyToken, askNotesMsg);
               return NextResponse.json({ message: 'OK' }, { status: 200 });
             }
 
@@ -332,20 +330,18 @@ export async function POST(req: Request) {
               draft.paymentStatus = 'paid';
               draft.depositAmount = 0;
               draft.remainingAmount = 0;
-              await setAdminSession(userId, 'awaiting_final_confirmation', draft);
+              await setAdminSession(userId, 'awaiting_notes', draft);
 
-              const summaryText = buildSummaryText(draft);
-              const confirmMsg = {
+              const askNotesMsg = {
                 type: 'text',
-                text: `${summaryText}\n\nกรุณากดปุ่มเพื่อยืนยันหรือยกเลิกการจองนะคะ 👇`,
+                text: `📝 จะโน้ตอะไรเพิ่มเติมไหมคะ?\n(หากมีสามารถพิมพ์ข้อความส่งได้เลย หรือกดปุ่ม "ไม่มีโน้ต" ด้านล่างนะคะ 👇)`,
                 quickReply: {
                   items: [
-                    { type: 'action', action: { type: 'message', label: '✅ ยืนยันการจอง', text: 'ยืนยันการจอง' } },
-                    { type: 'action', action: { type: 'message', label: '❌ ยกเลิกการจอง', text: 'ยกเลิกการจอง' } },
+                    { type: 'action', action: { type: 'message', label: '❌ ไม่มีโน้ต', text: 'ไม่มีโน้ต' } },
                   ]
                 }
               };
-              await replyToLine(replyToken, confirmMsg);
+              await replyToLine(replyToken, askNotesMsg);
               return NextResponse.json({ message: 'OK' }, { status: 200 });
             }
 
@@ -392,13 +388,39 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'OK' }, { status: 200 });
           }
 
-          // --- ขั้นตอนที่ 3: แอดมินกำลังระบุจำนวนเงินที่ต้องเก็บเพิ่ม -> เด้งสรุปพร้อมปุ่มยืนยัน/ทำรายการใหม่/ยกเลิก ---
+          // --- ขั้นตอนที่ 3: แอดมินกำลังระบุจำนวนเงินที่ต้องเก็บเพิ่ม -> ถามต่อเรื่องโน้ต ---
           if (adminSession.step === 'awaiting_remaining_amount') {
             const draft = adminSession.draftBooking;
             const matchAmount = userMessage.match(/\d+/);
             const remainingAmt = matchAmount ? parseInt(matchAmount[0], 10) : 0;
 
             draft.remainingAmount = remainingAmt;
+            await setAdminSession(userId, 'awaiting_notes', draft);
+
+            const askNotesMsg = {
+              type: 'text',
+              text: `📝 จะโน้ตอะไรเพิ่มเติมไหมคะ?\n(หากมีสามารถพิมพ์ข้อความส่งได้เลย หรือกดปุ่ม "ไม่มีโน้ต" ด้านล่างนะคะ 👇)`,
+              quickReply: {
+                items: [
+                  { type: 'action', action: { type: 'message', label: '❌ ไม่มีโน้ต', text: 'ไม่มีโน้ต' } },
+                ]
+              }
+            };
+            await replyToLine(replyToken, askNotesMsg);
+            return NextResponse.json({ message: 'OK' }, { status: 200 });
+          }
+
+          // --- ขั้นตอนที่ 3.5: แอดมินระบุโน้ต (หรือกดปุ่มไม่มีโน้ต) -> เด้งสรุปพร้อมปุ่มยืนยัน/ทำรายการใหม่/ยกเลิก ---
+          if (adminSession.step === 'awaiting_notes') {
+            const draft = adminSession.draftBooking;
+            const cleanText = userMessage.trim();
+
+            if (/^(ไม่มีโน้ต|ไม่มี|ไม่ระบุ|-|no|none)$/i.test(cleanText)) {
+              draft.notes = '';
+            } else {
+              draft.notes = cleanText;
+            }
+
             await setAdminSession(userId, 'awaiting_final_confirmation', draft);
 
             const summaryText = buildSummaryText(draft);
@@ -444,6 +466,7 @@ export async function POST(req: Request) {
               const isDeposit = draft.paymentStatus === 'deposit';
               draft.depositAmount = 0;
               draft.remainingAmount = 0;
+              draft.notes = '';
 
               if (isDeposit) {
                 await setAdminSession(userId, 'awaiting_deposit_amount', draft);
@@ -458,20 +481,17 @@ export async function POST(req: Request) {
                 };
                 await replyToLine(replyToken, askDepositMsg);
               } else {
-                await setAdminSession(userId, 'awaiting_final_confirmation', draft);
-                const summaryText = buildSummaryText(draft);
-                const confirmMsg = {
+                await setAdminSession(userId, 'awaiting_notes', draft);
+                const askNotesMsg = {
                   type: 'text',
-                  text: `🔄 ย้อนกลับไปขั้นตอนแรก\n\n${summaryText}\n\nกรุณากดปุ่มเพื่อยืนยันหรือยกเลิกการจองนะคะ 👇`,
+                  text: `🔄 ย้อนกลับไปขั้นตอนโน้ต\n\n📝 จะโน้ตอะไรเพิ่มเติมไหมคะ?\n(หากมีสามารถพิมพ์ข้อความส่งได้เลย หรือกดปุ่ม "ไม่มีโน้ต" ด้านล่างนะคะ 👇)`,
                   quickReply: {
                     items: [
-                      { type: 'action', action: { type: 'message', label: '✅ ยืนยันการจอง', text: 'ยืนยันการจอง' } },
-                      { type: 'action', action: { type: 'message', label: '🔄 ทำรายการใหม่', text: 'ทำรายการใหม่' } },
-                      { type: 'action', action: { type: 'message', label: '❌ ยกเลิกการจอง', text: 'ยกเลิกการจอง' } },
+                      { type: 'action', action: { type: 'message', label: '❌ ไม่มีโน้ต', text: 'ไม่มีโน้ต' } },
                     ]
                   }
                 };
-                await replyToLine(replyToken, confirmMsg);
+                await replyToLine(replyToken, askNotesMsg);
               }
               return NextResponse.json({ message: 'OK' }, { status: 200 });
             } else if (isConfirm) {
@@ -479,6 +499,10 @@ export async function POST(req: Request) {
                 const paymentNote = draft.paymentStatus === 'paid'
                   ? 'ชำระเต็มจำนวน'
                   : `มัดจำ ${draft.depositAmount || 0} บาท (เก็บเพิ่ม ${draft.remainingAmount || 0} บาท)`;
+
+                const finalNotes = draft.notes
+                  ? `${paymentNote} | โน้ต: ${draft.notes}`
+                  : paymentNote;
 
                 await confirmOrCreateBooking({
                   bookingId: draft.bookingId,
@@ -494,7 +518,7 @@ export async function POST(req: Request) {
                   paymentStatus: draft.paymentStatus || 'unpaid',
                   depositAmount: draft.depositAmount || 0,
                   remainingAmount: draft.remainingAmount || 0,
-                  notes: paymentNote,
+                  notes: finalNotes,
                 });
 
                 await clearAdminSession(userId);
@@ -515,6 +539,9 @@ export async function POST(req: Request) {
                   customerConfirmText += `K.${draft.customerName} ${draft.customerPhone}\n`;
                   customerConfirmText += `ชื่อไลน์ : ${draft.lineDisplayName || '-'}\n`;
                   customerConfirmText += `การชำระเงิน : ${paymentLabel}\n`;
+                  if (draft.notes) {
+                    customerConfirmText += `โน้ต : ${draft.notes}\n`;
+                  }
                   customerConfirmText += `ลงคิวเรียบร้อยค่ะ 🙇🏻‍♀️🙇🏻‍♀️`;
 
                   await pushLineMessage(draft.customerLineUserId, customerConfirmText, 'customer');

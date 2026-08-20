@@ -20,7 +20,7 @@ export interface DraftBookingData {
 
 export interface AdminSessionRecord {
   lineUserId: string;
-  step: 'awaiting_payment_status' | 'awaiting_deposit_amount' | 'awaiting_remaining_amount' | 'awaiting_final_confirmation';
+  step: 'awaiting_payment_status' | 'awaiting_deposit_amount' | 'awaiting_remaining_amount' | 'awaiting_notes' | 'awaiting_final_confirmation';
   draftBooking: DraftBookingData;
   updatedAt: number;
 }
@@ -38,7 +38,7 @@ export async function getAdminSession(lineUserId: string): Promise<AdminSessionR
 
 export async function setAdminSession(
   lineUserId: string,
-  step: 'awaiting_payment_status' | 'awaiting_deposit_amount' | 'awaiting_remaining_amount' | 'awaiting_final_confirmation',
+  step: 'awaiting_payment_status' | 'awaiting_deposit_amount' | 'awaiting_remaining_amount' | 'awaiting_notes' | 'awaiting_final_confirmation',
   draftBooking: DraftBookingData
 ): Promise<void> {
   const nowUnix = Math.floor(Date.now() / 1000);
