@@ -1,5 +1,5 @@
 import { db } from '@/db/db';
-import { schedules } from '@/db/schema';
+import { bookings, schedules } from '@/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { DaySchedule, DayStatus, SlotStatus, TimeSlot } from '@/data/schedule';
 import { getTodayThailandDateString } from '@/lib/line-utils';
@@ -11,7 +11,7 @@ export interface ScheduleRecord {
   eventName: string | null;
   location: string | null;
   imageUrl: string | null;
-  slots: { time: string; status: SlotStatus }[];
+  slots: TimeSlot[];
   createdAt: number;
 }
 
@@ -24,19 +24,53 @@ export const DEFAULT_TIME_SLOTS = [
 
 /**
  * Fetch all schedules mapped to Record<string, DaySchedule> for Frontend Calendar
+ * Seamlessly merges manual slot locks and active customer bookings
  */
 export async function getCalendarScheduleData(): Promise<Record<string, DaySchedule>> {
-  const records = await db.select().from(schedules).orderBy(asc(schedules.date));
-  
+  const [records, allBookings] = await Promise.all([
+    db.select().from(schedules).orderBy(asc(schedules.date)),
+    db.select().from(bookings),
+  ]);
+
   const scheduleData: Record<string, DaySchedule> = {};
-  
+
   for (const record of records) {
-    scheduleData[record.date.trim()] = {
-      status: (record.status?.toLowerCase().trim() || 'unavailable') as DayStatus,
+    const normDate = record.date.trim();
+    const eventBookings = allBookings.filter(b => b.date.trim() === normDate && b.status !== 'cancelled');
+    const bookedSlotsSet = new Set(eventBookings.map(b => (b.timeSlot || '').replace(/\s+/g, '')));
+
+    const currentSlots = (record.slots || []) as TimeSlot[];
+    const baseSlots: TimeSlot[] = currentSlots.length > 0
+      ? currentSlots
+      : DEFAULT_TIME_SLOTS.map(t => ({ time: t, status: 'available' as SlotStatus }));
+
+    const mergedSlots: TimeSlot[] = baseSlots.map(s => {
+      const cleanTime = s.time.replace(/\s+/g, '');
+      const isBooked = s.status === 'booked' || bookedSlotsSet.has(cleanTime);
+      return {
+        time: s.time,
+        status: isBooked ? ('booked' as SlotStatus) : ('available' as SlotStatus),
+        cameraStatuses: s.cameraStatuses,
+      };
+    });
+
+    const isExplicitFull = record.status?.toLowerCase().trim() === 'full';
+    const isAllSlotsBooked = mergedSlots.length > 0 && mergedSlots.every(s => s.status === 'booked');
+    const isDayFull = isExplicitFull || isAllSlotsBooked;
+
+    let dayStatus: DayStatus = 'available';
+    if (record.status?.toLowerCase().trim() === 'unavailable') {
+      dayStatus = 'unavailable';
+    } else if (isDayFull) {
+      dayStatus = 'booked';
+    }
+
+    scheduleData[normDate] = {
+      status: dayStatus,
       ...(record.eventName?.trim() && { eventName: record.eventName.trim() }),
       ...(record.location?.trim() && { location: record.location.trim() }),
       ...(record.imageUrl?.trim() && { imageUrl: record.imageUrl.trim() }),
-      slots: (record.slots || []) as TimeSlot[],
+      slots: mergedSlots,
     };
   }
 
@@ -67,28 +101,79 @@ export async function getAvailableScheduleRecords(): Promise<ScheduleRecord[]> {
 }
 
 /**
- * Update slot status or schedule status in Supabase
+ * Update slot status or schedule status in Supabase (with camera support)
  */
 export async function updateScheduleSlotStatus(
-  date: string,
-  eventName: string,
-  timeSlot: string,
-  newStatus: SlotStatus
+  scheduleIdOrDate: number | string,
+  eventNameOrSlotTime: string,
+  timeSlotOrNewStatus: string | SlotStatus,
+  optionalNewStatusOrCamera?: SlotStatus | string,
+  optionalCameraType?: string
 ): Promise<boolean> {
-  const records = await db
-    .select()
-    .from(schedules)
-    .where(eq(schedules.date, date));
+  let targetId: number | null = null;
+  let targetDate: string = '';
+  let targetEventName: string = '';
+  let timeSlot: string = '';
+  let newStatus: SlotStatus = 'available';
+  let cameraType: string | undefined = undefined;
 
-  const target = records.find(r => r.eventName === eventName || !eventName);
+  if (typeof scheduleIdOrDate === 'number') {
+    targetId = scheduleIdOrDate;
+    timeSlot = eventNameOrSlotTime;
+    newStatus = timeSlotOrNewStatus as SlotStatus;
+    if (typeof optionalNewStatusOrCamera === 'string') {
+      cameraType = optionalNewStatusOrCamera;
+    }
+  } else {
+    targetDate = scheduleIdOrDate;
+    targetEventName = eventNameOrSlotTime;
+    timeSlot = timeSlotOrNewStatus as string;
+    newStatus = optionalNewStatusOrCamera as SlotStatus;
+    cameraType = optionalCameraType;
+  }
+
+  let target: any = null;
+  if (targetId) {
+    const [record] = await db.select().from(schedules).where(eq(schedules.id, targetId));
+    target = record;
+  } else if (targetDate) {
+    const records = await db.select().from(schedules).where(eq(schedules.date, targetDate));
+    target = records.find(r => r.eventName === targetEventName || !targetEventName) || records[0];
+  }
+
   if (!target) return false;
 
+  const cleanTargetSlot = timeSlot.replace(/\s+/g, '');
   const currentSlots = (target.slots || []) as TimeSlot[];
-  const updatedSlots = currentSlots.map(s => 
-    s.time.replace(/\s+/g, '') === timeSlot.replace(/\s+/g, '') 
-      ? { ...s, status: newStatus } 
-      : s
-  );
+
+  let found = false;
+  const updatedSlots = currentSlots.map(s => {
+    if (s.time.replace(/\s+/g, '') === cleanTargetSlot) {
+      found = true;
+      const updatedCamStatuses = { ...(s.cameraStatuses || {}) };
+      if (cameraType && cameraType !== 'all') {
+        updatedCamStatuses[cameraType.trim()] = newStatus;
+      }
+      return {
+        ...s,
+        status: (!cameraType || cameraType === 'all') ? newStatus : s.status,
+        ...(cameraType && cameraType !== 'all' ? { cameraStatuses: updatedCamStatuses } : {}),
+      };
+    }
+    return s;
+  });
+
+  if (!found) {
+    const camStatuses: Record<string, SlotStatus> = {};
+    if (cameraType && cameraType !== 'all') {
+      camStatuses[cameraType.trim()] = newStatus;
+    }
+    updatedSlots.push({
+      time: timeSlot.trim(),
+      status: (!cameraType || cameraType === 'all') ? newStatus : 'available',
+      ...(cameraType && cameraType !== 'all' ? { cameraStatuses: camStatuses } : {}),
+    });
+  }
 
   await db
     .update(schedules)

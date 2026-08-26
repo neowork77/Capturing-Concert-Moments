@@ -4,6 +4,7 @@ export type DayStatus = 'available' | 'booked' | 'unavailable' | 'na';
 export interface TimeSlot {
   time: string;
   status: SlotStatus;
+  cameraStatuses?: Record<string, SlotStatus>;
 }
 
 export interface DaySchedule {

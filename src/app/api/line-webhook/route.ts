@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import {
   getAllScheduleRecords,
   getAvailableScheduleRecords,
@@ -165,6 +169,34 @@ async function sendAvailableEventsFlex(replyToken: string, greetingText?: string
   await replyToLine(replyToken, replyMessages);
 }
 
+function checkSlotStatusForCamera(
+  timeLabel: string,
+  cameraType: string,
+  record: ScheduleRecord,
+  bookedSlotsForThisCamera: Set<string>
+): boolean {
+  const cleanTime = timeLabel.replace(/\s+/g, '');
+  if (bookedSlotsForThisCamera.has(cleanTime)) return true;
+
+  const slotObj = (record.slots || []).find(s => s.time.replace(/\s+/g, '') === cleanTime);
+  if (!slotObj) return false;
+
+  const normCam = cameraType.trim().toLowerCase();
+  if (slotObj.cameraStatuses) {
+    const camKey = Object.keys(slotObj.cameraStatuses).find(
+      k =>
+        k.toLowerCase() === normCam ||
+        k.toLowerCase().includes(normCam) ||
+        normCam.includes(k.toLowerCase())
+    );
+    if (camKey) {
+      return slotObj.cameraStatuses[camKey] === 'booked';
+    }
+  }
+
+  return slotObj.status === 'booked' || (slotObj.status as string) === 'unavailable';
+}
+
 // ฟังก์ชันแสดงตารางรอบเวลาทั้งหมด (เต็ม/ว่าง) สำหรับกล้องที่เลือก พร้อมถามความสนใจจองคิว
 async function sendTimetableWithInterestPrompt(
   replyToken: string,
@@ -183,7 +215,7 @@ async function sendTimetableWithInterestPrompt(
 
   const allBookings = await getAllBookings();
   const normDate = date.trim();
-  const normEvent = eventName.trim();
+  const normEvent = eventName.trim().toLowerCase();
   const normCam = cameraType.trim().toLowerCase();
 
   const bookedSlotsForThisCamera = new Set<string>();
@@ -192,22 +224,22 @@ async function sendTimetableWithInterestPrompt(
     if (b.status === 'cancelled') return;
 
     const sameDate = b.date.trim() === normDate;
-    const sameEvent = !normEvent || !b.eventName || (b.eventName || '').trim() === normEvent;
+    const bEvent = (b.eventName || '').trim().toLowerCase();
+    const sameEvent = !normEvent || !bEvent || bEvent.includes(normEvent) || normEvent.includes(bEvent);
     const bCam = (b.cameraType || '').trim().toLowerCase();
-    const sameCam = !normCam || !bCam || normCam === bCam;
+    const sameCam = !normCam || !bCam || normCam === bCam || bCam.includes(normCam) || normCam.includes(bCam);
 
     if (sameDate && sameEvent && sameCam) {
       bookedSlotsForThisCamera.add((b.timeSlot || '').replace(/\s+/g, ''));
     }
   });
 
-  const masterSlotsMap = new Map((record.slots || []).map(s => [s.time.replace(/\s+/g, ''), s.status]));
+  const slotsToDisplay = (record.slots && record.slots.length > 0)
+    ? record.slots.map(s => s.time)
+    : TIME_SLOTS;
 
-  TIME_SLOTS.forEach((timeLabel) => {
-    const cleanTime = timeLabel.replace(/\s+/g, '');
-    const masterStatus = masterSlotsMap.get(cleanTime);
-    const isBooked = bookedSlotsForThisCamera.has(cleanTime) || (masterStatus as string) === 'unavailable';
-
+  slotsToDisplay.forEach((timeLabel) => {
+    const isBooked = checkSlotStatusForCamera(timeLabel, cameraType, record, bookedSlotsForThisCamera);
     if (!isBooked) {
       replyText += `  ✅ ${timeLabel} (ว่าง)\n`;
     } else {
@@ -254,7 +286,7 @@ async function sendAvailableTimeSlotsQuickReply(
 ) {
   const allBookings = await getAllBookings();
   const normDate = date.trim();
-  const normEvent = eventName.trim();
+  const normEvent = eventName.trim().toLowerCase();
   const normCam = cameraType.trim().toLowerCase();
 
   const bookedSlotsForThisCamera = new Set<string>();
@@ -263,24 +295,23 @@ async function sendAvailableTimeSlotsQuickReply(
     if (b.status === 'cancelled') return;
 
     const sameDate = b.date.trim() === normDate;
-    const sameEvent = !normEvent || !b.eventName || (b.eventName || '').trim() === normEvent;
+    const bEvent = (b.eventName || '').trim().toLowerCase();
+    const sameEvent = !normEvent || !bEvent || bEvent.includes(normEvent) || normEvent.includes(bEvent);
     const bCam = (b.cameraType || '').trim().toLowerCase();
-    const sameCam = !normCam || !bCam || normCam === bCam;
+    const sameCam = !normCam || !bCam || normCam === bCam || bCam.includes(normCam) || normCam.includes(bCam);
 
     if (sameDate && sameEvent && sameCam) {
       bookedSlotsForThisCamera.add((b.timeSlot || '').replace(/\s+/g, ''));
     }
   });
 
-  const masterSlotsMap = new Map((record.slots || []).map(s => [s.time.replace(/\s+/g, ''), s.status]));
-
   const availableSlots: string[] = [];
+  const slotsToDisplay = (record.slots && record.slots.length > 0)
+    ? record.slots.map(s => s.time)
+    : TIME_SLOTS;
 
-  TIME_SLOTS.forEach((timeLabel) => {
-    const cleanTime = timeLabel.replace(/\s+/g, '');
-    const masterStatus = masterSlotsMap.get(cleanTime);
-    const isBooked = bookedSlotsForThisCamera.has(cleanTime) || (masterStatus as string) === 'unavailable';
-
+  slotsToDisplay.forEach((timeLabel) => {
+    const isBooked = checkSlotStatusForCamera(timeLabel, cameraType, record, bookedSlotsForThisCamera);
     if (!isBooked) {
       availableSlots.push(timeLabel);
     }
@@ -396,8 +427,15 @@ export async function POST(req: Request) {
         
         // กรณีลูกค้าเพิ่งกดเลือกกล้องแล้วกดตอบรับ Quick Reply "ต้องการจองคิว"
         if (session && session.step === 'confirm_booking_interest' && session.eventName && session.date) {
+          const targetDate = session.date;
+          const targetEvent = session.eventName;
           const allRecords = await getAllScheduleRecords();
-          const matchedRecord = allRecords.find(r => r.date.trim() === session.date && (r.eventName || '').trim() === session.eventName);
+          const matchedRecord = allRecords.find(r => {
+            const sameDate = r.date.trim() === targetDate.trim();
+            const rName = (r.eventName || '').trim().toLowerCase();
+            const sName = targetEvent.trim().toLowerCase();
+            return sameDate && (rName === sName || rName.includes(sName) || sName.includes(rName));
+          });
 
           if (matchedRecord) {
             if (userId) {
@@ -406,8 +444,8 @@ export async function POST(req: Request) {
 
             await sendAvailableTimeSlotsQuickReply(
               replyToken,
-              session.eventName,
-              session.date,
+              targetEvent,
+              targetDate,
               session.cameraType || 'กล้องหลัก',
               matchedRecord
             );
@@ -448,31 +486,45 @@ export async function POST(req: Request) {
           return NextResponse.json({ message: 'OK' }, { status: 200 });
         }
 
+        const sessionEvent = session.eventName;
+        const sessionDate = session.date;
+
         // ตรวจสอบว่า slot สำหรับกล้องรุ่นนี้ยังว่างอยู่ไหม
         const allRecords = await getAllScheduleRecords();
-        const matchedRecord = allRecords.find(r => r.date.trim() === session.date && (r.eventName || '').trim() === session.eventName);
+        const matchedRecord = allRecords.find(r => {
+          const sameDate = r.date.trim() === sessionDate.trim();
+          const rName = (r.eventName || '').trim().toLowerCase();
+          const sName = sessionEvent.trim().toLowerCase();
+          return sameDate && (rName === sName || rName.includes(sName) || sName.includes(rName));
+        });
 
         if (matchedRecord) {
           const allBookings = await getAllBookings();
           const normDate = session.date.trim();
-          const normEvent = session.eventName.trim();
+          const normEvent = session.eventName.trim().toLowerCase();
           const normCam = (session.cameraType || '').trim().toLowerCase();
-          const cleanSlot = selectedSlot.replace(/\s+/g, '');
 
-          const isSlotBookedForCamera = allBookings.some(b => {
-            if (b.status === 'cancelled') return false;
+          const bookedSlotsForThisCamera = new Set<string>();
+          allBookings.forEach(b => {
+            if (b.status === 'cancelled') return;
             const sameDate = b.date.trim() === normDate;
-            const sameEvent = !normEvent || !b.eventName || (b.eventName || '').trim() === normEvent;
+            const bEvent = (b.eventName || '').trim().toLowerCase();
+            const sameEvent = !normEvent || !bEvent || bEvent.includes(normEvent) || normEvent.includes(bEvent);
             const bCam = (b.cameraType || '').trim().toLowerCase();
-            const sameCam = !normCam || !bCam || normCam === bCam;
-            const sameSlot = (b.timeSlot || '').replace(/\s+/g, '') === cleanSlot;
-            return sameDate && sameEvent && sameCam && sameSlot;
+            const sameCam = !normCam || !bCam || normCam === bCam || bCam.includes(normCam) || normCam.includes(bCam);
+            if (sameDate && sameEvent && sameCam) {
+              bookedSlotsForThisCamera.add((b.timeSlot || '').replace(/\s+/g, ''));
+            }
           });
 
-          const masterSlotsMap = new Map((matchedRecord.slots || []).map(s => [s.time.replace(/\s+/g, ''), s.status]));
-          const isMasterUnavailable = (masterSlotsMap.get(cleanSlot) as string) === 'unavailable';
+          const isBooked = checkSlotStatusForCamera(
+            selectedSlot,
+            session.cameraType || '',
+            matchedRecord,
+            bookedSlotsForThisCamera
+          );
 
-          if (isSlotBookedForCamera || isMasterUnavailable) {
+          if (isBooked) {
             await replyToLine(replyToken, {
               type: 'text',
               text: `⚠️ ขออภัยค่ะ รอบเวลา ${selectedSlot} น. สำหรับกล้อง "${session.cameraType || 'รุ่นนี้'}" ถูกจองไปแล้ว กรุณากดเลือกรอบเวลาอื่นนะคะ 🙇🏻‍♀️`
@@ -525,7 +577,12 @@ export async function POST(req: Request) {
         }
 
         const allRecords = await getAllScheduleRecords();
-        const matchedRecord = allRecords.find(r => r.date.trim() === targetDate && (r.eventName || '').trim() === targetEventName);
+        const matchedRecord = allRecords.find(r => {
+          const sameDate = r.date.trim() === targetDate.trim();
+          const rName = (r.eventName || '').trim().toLowerCase();
+          const tName = targetEventName.trim().toLowerCase();
+          return sameDate && (rName === tName || !targetEventName || rName.includes(tName) || tName.includes(rName));
+        });
 
         if (matchedRecord) {
           await sendTimetableWithInterestPrompt(

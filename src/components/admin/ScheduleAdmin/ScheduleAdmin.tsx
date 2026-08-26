@@ -460,6 +460,8 @@ export default function ScheduleAdmin() {
         <SlotManager
           activeSlotSchedule={activeSlotSchedule}
           selectedCameraName={selectedCameraName}
+          cameras={cameras}
+          onSelectCamera={(camName) => setSelectedCameraName(camName)}
           onClose={() => setActiveSlotSchedule(null)}
           handleToggleSlot={handleToggleSlot}
           setAllSlotsStatus={setAllSlotsStatus}

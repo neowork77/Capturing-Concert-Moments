@@ -10,7 +10,7 @@ import {
 import { fetchActiveCamerasAction } from '@/app/actions/camera-actions';
 import { ScheduleRecord } from '@/lib/schedule-service';
 import { CameraRecord } from '@/lib/camera-service';
-import { SlotStatus } from '@/data/schedule';
+import { SlotStatus, TimeSlot } from '@/data/schedule';
 
 import { CACHE_KEYS, getAdminCache, setAdminCache } from '@/lib/admin-cache';
 
@@ -225,60 +225,118 @@ export function useScheduleAdmin() {
     setDeletingId(null);
   };
 
-  const handleToggleSlot = async (schedule: ScheduleRecord, slotTime: string, currentStatus: SlotStatus) => {
-    const res = await toggleSlotStatusAction(schedule.date, schedule.eventName || '', slotTime, currentStatus);
-    if (res.success) {
-      setSchedules(prev => {
-        const next = prev.map(s => {
-          if (s.id !== schedule.id) return s;
-          const updatedSlots = s.slots.map(slot =>
-            slot.time.replace(/\s+/g, '') === slotTime.replace(/\s+/g, '')
-              ? { ...slot, status: (currentStatus === 'available' ? 'booked' : 'available') as SlotStatus }
-              : slot
-          );
-          return { ...s, slots: updatedSlots };
-        });
-        setAdminCache(CACHE_KEYS.SCHEDULES, next);
-        return next;
-      });
+  const handleToggleSlot = async (
+    schedule: ScheduleRecord,
+    slotTime: string,
+    currentStatus: SlotStatus,
+    cameraType?: string
+  ): Promise<boolean> => {
+    const newStatus: SlotStatus = currentStatus === 'available' ? 'booked' : 'available';
+    const cleanTime = slotTime.replace(/\s+/g, '');
 
-      if (activeSlotSchedule && activeSlotSchedule.id === schedule.id) {
-        setActiveSlotSchedule(prev => {
-          if (!prev) return null;
+    const applySlotUpdate = (slotsList: TimeSlot[]) => {
+      let matched = false;
+      const updated = slotsList.map(slot => {
+        if (slot.time.replace(/\s+/g, '') === cleanTime) {
+          matched = true;
+          const camStatuses = { ...(slot.cameraStatuses || {}) };
+          if (cameraType && cameraType !== 'all') {
+            camStatuses[cameraType] = newStatus;
+          }
           return {
-            ...prev,
-            slots: prev.slots.map(slot =>
-              slot.time.replace(/\s+/g, '') === slotTime.replace(/\s+/g, '')
-                ? { ...slot, status: (currentStatus === 'available' ? 'booked' : 'available') as SlotStatus }
-                : slot
-            )
+            ...slot,
+            status: (!cameraType || cameraType === 'all') ? newStatus : slot.status,
+            ...(cameraType && cameraType !== 'all' ? { cameraStatuses: camStatuses } : {}),
           };
+        }
+        return slot;
+      });
+      if (!matched) {
+        const camStatuses: Record<string, SlotStatus> = {};
+        if (cameraType && cameraType !== 'all') {
+          camStatuses[cameraType] = newStatus;
+        }
+        updated.push({
+          time: slotTime.trim(),
+          status: (!cameraType || cameraType === 'all') ? newStatus : 'available',
+          ...(cameraType && cameraType !== 'all' ? { cameraStatuses: camStatuses } : {}),
         });
       }
-    } else {
-      alert(res.message || 'ไม่สามารถอัปเดตสถานะรอบเวลาได้');
+      return updated;
+    };
+
+    // Optimistic UI updates
+    setSchedules(prev => {
+      const next = prev.map(s => {
+        if (s.id !== schedule.id) return s;
+        return { ...s, slots: applySlotUpdate(s.slots) };
+      });
+      setAdminCache(CACHE_KEYS.SCHEDULES, next);
+      return next;
+    });
+
+    if (activeSlotSchedule && activeSlotSchedule.id === schedule.id) {
+      setActiveSlotSchedule(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          slots: applySlotUpdate(prev.slots),
+        };
+      });
     }
+
+    const res = await toggleSlotStatusAction(schedule.id, slotTime, currentStatus, cameraType);
+    if (!res.success) {
+      await loadSchedules(true);
+      alert(res.message || 'ไม่สามารถอัปเดตสถานะรอบเวลาได้');
+      return false;
+    }
+    return true;
   };
 
-  const setAllSlotsStatus = async (schedule: ScheduleRecord, targetStatus: SlotStatus) => {
-    const updatedSlots = schedule.slots.map(s => ({ ...s, status: targetStatus }));
+  const setAllSlotsStatus = async (
+    schedule: ScheduleRecord,
+    targetStatus: SlotStatus,
+    cameraType?: string
+  ) => {
+    const updatedSlots = schedule.slots.map(s => {
+      if (cameraType && cameraType !== 'all') {
+        const camStatuses = { ...(s.cameraStatuses || {}), [cameraType]: targetStatus };
+        return { ...s, cameraStatuses: camStatuses };
+      }
+      return { ...s, status: targetStatus };
+    });
+    const targetDayStatus = (!cameraType || cameraType === 'all') && targetStatus === 'booked' ? 'full' : 'available';
+
+    // Optimistic UI updates
+    setSchedules(prev => {
+      const next = prev.map(s => {
+        if (s.id !== schedule.id) return s;
+        return { ...s, slots: updatedSlots, status: targetDayStatus };
+      });
+      setAdminCache(CACHE_KEYS.SCHEDULES, next);
+      return next;
+    });
+
+    if (activeSlotSchedule && activeSlotSchedule.id === schedule.id) {
+      setActiveSlotSchedule(prev =>
+        prev ? { ...prev, slots: updatedSlots, status: targetDayStatus } : null
+      );
+    }
+
     const res = await upsertScheduleAction({
       id: schedule.id,
       date: schedule.date,
-      status: targetStatus === 'booked' ? 'full' : 'available',
+      status: targetDayStatus,
       eventName: schedule.eventName || undefined,
       location: schedule.location || undefined,
       imageUrl: schedule.imageUrl || undefined,
       slots: updatedSlots,
     });
 
-    if (res.success) {
+    if (!res.success) {
       await loadSchedules(true);
-      if (activeSlotSchedule && activeSlotSchedule.id === schedule.id) {
-        setActiveSlotSchedule(prev => prev ? { ...prev, slots: updatedSlots, status: targetStatus === 'booked' ? 'full' : 'available' } : null);
-      }
-    } else {
-      alert('ไม่สามารถอัปเดตรอบเวลาทั้งหมดได้');
+      alert(res.message || 'ไม่สามารถอัปเดตรอบเวลาทั้งหมดได้');
     }
   };
 

@@ -1,6 +1,7 @@
 import { db } from '@/db/db';
-import { bookings, schedules } from '@/db/schema';
+import { bookings } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { updateScheduleSlotStatus } from '@/lib/schedule-service';
 
 export interface BookingRecord {
   id: number;
@@ -93,6 +94,14 @@ export async function createBooking(data: {
     })
     .returning();
 
+  if (inserted.status !== 'cancelled') {
+    try {
+      await updateScheduleSlotStatus(normDate, normEvent, data.timeSlot, 'booked');
+    } catch (e) {
+      console.warn('Could not auto-sync slot status to schedules table:', e);
+    }
+  }
+
   return inserted as BookingRecord;
 }
 
@@ -120,6 +129,34 @@ export async function updateBookingStatus(
       ...(remainingAmount !== undefined && { remainingAmount }),
     })
     .where(eq(bookings.id, id));
+
+  // If status is updated
+  if (status === 'cancelled') {
+    try {
+      // Check if there are other active bookings for the same date and slot
+      const otherBookings = await db
+        .select()
+        .from(bookings)
+        .where(eq(bookings.date, existing.date));
+
+      const cleanSlot = (existing.timeSlot || '').replace(/\s+/g, '');
+      const hasOtherActiveBooking = otherBookings.some(
+        b => b.id !== id && b.status !== 'cancelled' && (b.timeSlot || '').replace(/\s+/g, '') === cleanSlot
+      );
+
+      if (!hasOtherActiveBooking) {
+        await updateScheduleSlotStatus(existing.date, existing.eventName, existing.timeSlot, 'available');
+      }
+    } catch (e) {
+      console.warn('Could not sync slot status on cancellation:', e);
+    }
+  } else if (status === 'confirmed' || status === 'pending') {
+    try {
+      await updateScheduleSlotStatus(existing.date, existing.eventName, existing.timeSlot, 'booked');
+    } catch (e) {
+      console.warn('Could not sync slot status on update:', e);
+    }
+  }
 
   return true;
 }
@@ -163,6 +200,15 @@ export async function confirmOrCreateBooking(data: {
         })
         .where(eq(bookings.id, data.bookingId))
         .returning();
+
+      if (updated.status !== 'cancelled') {
+        try {
+          await updateScheduleSlotStatus(normDate, normEvent, data.timeSlot, 'booked');
+        } catch (e) {
+          console.warn('Could not sync slot status on confirm bookingId:', e);
+        }
+      }
+
       return updated as BookingRecord;
     }
   }
@@ -198,6 +244,15 @@ export async function confirmOrCreateBooking(data: {
       })
       .where(eq(bookings.id, pendingBooking.id))
       .returning();
+
+    if (updated.status !== 'cancelled') {
+      try {
+        await updateScheduleSlotStatus(normDate, normEvent, data.timeSlot, 'booked');
+      } catch (e) {
+        console.warn('Could not sync slot status on confirm pendingBooking:', e);
+      }
+    }
+
     return updated as BookingRecord;
   }
 

@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { db } from '@/db/db';
 import { adminSessions } from '@/db/schema';
-import { getAllScheduleRecords, ScheduleRecord } from '@/lib/schedule-service';
+import { getAllScheduleRecords, ScheduleRecord, DEFAULT_TIME_SLOTS } from '@/lib/schedule-service';
+import { TimeSlot } from '@/data/schedule';
 import { getAllBookings, createBooking, confirmOrCreateBooking, cancelPendingBookingIfExists, BookingRecord } from '@/lib/booking-service';
 import { getAdminSession, setAdminSession, clearAdminSession, pushLineMessage, registerAdminUserId, DraftBookingData } from '@/lib/admin-session-service';
 import { clearLineUserSession } from '@/lib/line-session-service';
@@ -897,7 +902,9 @@ export async function POST(req: Request) {
 
       const fullEventName = targetSchedule.eventName || 'ไม่ได้ระบุชื่อ';
       const targetDateStr = targetSchedule.date;
-      const slots = targetSchedule.slots || [];
+      const slots: TimeSlot[] = (targetSchedule.slots && targetSchedule.slots.length > 0)
+        ? targetSchedule.slots
+        : DEFAULT_TIME_SLOTS.map(t => ({ time: t, status: 'available' as const }));
 
       const activeCameras = await getActiveCameras();
 
@@ -1040,6 +1047,22 @@ export async function POST(req: Request) {
 
           const bookingInfo = bookedSlotsMap.get(cleanSlotTime);
 
+          let isSlotLockedForThisCam = false;
+          const normCamName = cameraName.trim().toLowerCase();
+          if (slot.cameraStatuses) {
+            const camKey = Object.keys(slot.cameraStatuses).find(
+              k =>
+                k.toLowerCase() === normCamName ||
+                k.toLowerCase().includes(normCamName) ||
+                normCamName.includes(k.toLowerCase())
+            );
+            if (camKey) {
+              isSlotLockedForThisCam = slot.cameraStatuses[camKey] === 'booked';
+            }
+          } else if (slot.status === 'booked') {
+            isSlotLockedForThisCam = true;
+          }
+
           if (bookingInfo) {
             const customerName = bookingInfo.customerName || 'ไม่ระบุชื่อ';
             const phone = bookingInfo.customerPhone ? formatPhoneNumber(bookingInfo.customerPhone) : 'ไม่ระบุเบอร์';
@@ -1060,6 +1083,8 @@ export async function POST(req: Request) {
             const notesInfo = bookingInfo.notes ? `\n   📝 โน้ต: ${bookingInfo.notes}` : '';
 
             camBookedList += `⏰ ${slot.time}\n   👤 ผู้จอง: K.${customerName}\n   💬 ชื่อไลน์: ${lineName}\n   📞 เบอร์: ${phone}\n   💳 การชำระเงิน: ${paymentLabel}\n   📋 สถานะคิว: ${statusLabel}${notesInfo}\n---------------------\n`;
+          } else if (isSlotLockedForThisCam) {
+            camBookedList += `⏰ ${slot.time}\n   🔒 สถานะ: แอดมินล็อกเป็นคิวเต็ม (${cameraName})\n---------------------\n`;
           } else {
             camAvailableList += `  ✅ ${slot.time}\n`;
           }
@@ -1266,11 +1291,11 @@ export async function POST(req: Request) {
             b.timeSlot.replace(/\s+/g, '') === inputTime &&
             b.status !== 'cancelled'
         );
-        const existingUser = existingBooking?.customerName || 'บุคคลอื่น';
+        const existingUser = existingBooking?.customerName || 'แอดมิน (ตั้งค่ารอบเวลาเต็ม)';
 
         await replyToLine(
           replyToken,
-          `⚠️ ขออภัยค่ะ! ไม่สามารถจองช่วงเวลานี้ได้\n\n🎤 Event: ${fullEventName}\n⏰ เวลา: ${inputTime}\n\n❌ คิวนี้ถูกจองไปก่อนหน้าแล้วโดยคุณ [ ${existingUser} ]`
+          `⚠️ ขออภัยค่ะ! ไม่สามารถจองช่วงเวลานี้ได้\n\n🎤 Event: ${fullEventName}\n⏰ เวลา: ${inputTime}\n\n❌ คิวนี้ถูกตั้งสถานะเป็นเต็มแล้ว (ผู้จอง/สถานะ: ${existingUser})`
         );
         return NextResponse.json({ message: 'OK' }, { status: 200 });
       }

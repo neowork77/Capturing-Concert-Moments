@@ -1,29 +1,54 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ScheduleRecord } from '@/lib/schedule-service';
-import { SlotStatus } from '@/data/schedule';
+import { SlotStatus, TimeSlot } from '@/data/schedule';
 import { fetchBookingsAction, updateBookingStatusAction } from '@/app/actions/booking-actions';
 import { BookingRecord } from '@/lib/booking-service';
+import { CameraRecord } from '@/lib/camera-service';
 import { CACHE_KEYS, getAdminCache, setAdminCache } from '@/lib/admin-cache';
 
 interface SlotManagerProps {
   activeSlotSchedule: ScheduleRecord;
   selectedCameraName?: string;
+  cameras?: CameraRecord[];
+  onSelectCamera?: (cameraName: string) => void;
   onClose: () => void;
-  handleToggleSlot: (schedule: ScheduleRecord, slotTime: string, currentStatus: SlotStatus) => void;
-  setAllSlotsStatus: (schedule: ScheduleRecord, targetStatus: SlotStatus) => void;
+  handleToggleSlot: (
+    schedule: ScheduleRecord,
+    slotTime: string,
+    currentStatus: SlotStatus,
+    cameraType?: string
+  ) => Promise<boolean> | void;
+  setAllSlotsStatus: (
+    schedule: ScheduleRecord,
+    targetStatus: SlotStatus,
+    cameraType?: string
+  ) => Promise<void> | void;
 }
 
 export default function SlotManager({
   activeSlotSchedule,
   selectedCameraName,
+  cameras = [],
+  onSelectCamera,
   onClose,
   handleToggleSlot,
   setAllSlotsStatus,
 }: SlotManagerProps) {
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState<boolean>(true);
+  const [activeCamera, setActiveCamera] = useState<string>(
+    selectedCameraName || cameras[0]?.name || 'all'
+  );
   const [selectedSlotTime, setSelectedSlotTime] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [togglingSlotTime, setTogglingSlotTime] = useState<string | null>(null);
+  const [isBulkLoading, setIsBulkLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (selectedCameraName) {
+      setActiveCamera(selectedCameraName);
+    }
+  }, [selectedCameraName]);
 
   const loadBookings = async (forceRefresh = false) => {
     const cached = getAdminCache<BookingRecord[]>(CACHE_KEYS.BOOKINGS);
@@ -46,38 +71,109 @@ export default function SlotManager({
     loadBookings();
   }, [activeSlotSchedule]);
 
+  // คัดกรองการจองเฉพาะวันที่นี้ และเฉพาะรุ่นกล้องที่เลือก (หรือทั้งหมดถ้าเลือก 'all')
   const bookingsBySlot = useMemo(() => {
     const map: Record<string, BookingRecord[]> = {};
     const schedDate = activeSlotSchedule.date.trim();
+    const activeCamNorm = activeCamera.trim().toLowerCase();
+
     bookings.forEach(b => {
       if (b.date.trim() === schedDate) {
-        const normTime = b.timeSlot.replace(/\s+/g, '');
-        if (!map[normTime]) map[normTime] = [];
-        map[normTime].push(b);
+        const normCam = (b.cameraType || '').trim().toLowerCase();
+        const isMatchCam =
+          activeCamera === 'all' ||
+          !activeCamera ||
+          !b.cameraType ||
+          normCam === activeCamNorm ||
+          normCam.includes(activeCamNorm) ||
+          activeCamNorm.includes(normCam);
+
+        if (isMatchCam) {
+          const normTime = b.timeSlot.replace(/\s+/g, '');
+          if (!map[normTime]) map[normTime] = [];
+          map[normTime].push(b);
+        }
       }
     });
     return map;
-  }, [bookings, activeSlotSchedule.date]);
+  }, [bookings, activeSlotSchedule.date, activeCamera]);
+
+  // ฟังก์ชันตรวจเช็คว่ารอบเวลาสำหรับกล้องที่เลือกนั้น "เต็ม" หรือ "ว่าง"
+  const isSlotBookedForCurrentCamera = (slot: TimeSlot): boolean => {
+    const normTime = slot.time.replace(/\s+/g, '');
+    const activeBookings = (bookingsBySlot[normTime] || []).filter(b => b.status !== 'cancelled');
+
+    if (activeCamera && activeCamera !== 'all') {
+      // 1. มีรายการจองของกล้องนี้ที่ยังไม่ยกเลิก
+      if (activeBookings.length > 0) return true;
+
+      // 2. แอดมินตั้งค่าล็อกเฉพาะกล้องนี้
+      if (slot.cameraStatuses) {
+        const activeCamNorm = activeCamera.trim().toLowerCase();
+        const key = Object.keys(slot.cameraStatuses).find(
+          k =>
+            k.toLowerCase() === activeCamNorm ||
+            k.toLowerCase().includes(activeCamNorm) ||
+            activeCamNorm.includes(k.toLowerCase())
+        );
+        if (key) {
+          return slot.cameraStatuses[key] === 'booked';
+        }
+      }
+
+      // 3. Fallback สถานะหลักของรอบเวลา
+      return slot.status === 'booked';
+    }
+
+    // กรณีดูภาพรวม 'all'
+    if (activeBookings.length > 0) return true;
+    return slot.status === 'booked';
+  };
 
   const slotStats = useMemo(() => {
     const total = activeSlotSchedule.slots.length;
-    const available = activeSlotSchedule.slots.filter(s => s.status === 'available').length;
-    const booked = activeSlotSchedule.slots.filter(s => s.status === 'booked').length;
+    let booked = 0;
+    activeSlotSchedule.slots.forEach(s => {
+      if (isSlotBookedForCurrentCamera(s)) {
+        booked++;
+      }
+    });
+    const available = Math.max(0, total - booked);
     const bookedPercent = total > 0 ? Math.round((booked / total) * 100) : 0;
     return { total, available, booked, bookedPercent };
-  }, [activeSlotSchedule.slots]);
+  }, [activeSlotSchedule.slots, bookingsBySlot, activeCamera]);
 
   const selectedSlot = useMemo(() => {
     if (!selectedSlotTime) return null;
-    return activeSlotSchedule.slots.find(
-      s => s.time.replace(/\s+/g, '') === selectedSlotTime.replace(/\s+/g, '')
-    ) || null;
+    return (
+      activeSlotSchedule.slots.find(
+        s => s.time.replace(/\s+/g, '') === selectedSlotTime.replace(/\s+/g, '')
+      ) || null
+    );
   }, [activeSlotSchedule.slots, selectedSlotTime]);
 
   const selectedSlotBookings = useMemo(() => {
     if (!selectedSlotTime) return [];
     return bookingsBySlot[selectedSlotTime.replace(/\s+/g, '')] || [];
   }, [bookingsBySlot, selectedSlotTime]);
+
+  const onToggleSingleSlot = async (slotTime: string, currentEffectiveStatus: SlotStatus) => {
+    setTogglingSlotTime(slotTime);
+    try {
+      await handleToggleSlot(activeSlotSchedule, slotTime, currentEffectiveStatus, activeCamera);
+    } finally {
+      setTogglingSlotTime(null);
+    }
+  };
+
+  const onBulkSetStatus = async (targetStatus: SlotStatus) => {
+    setIsBulkLoading(true);
+    try {
+      await setAllSlotsStatus(activeSlotSchedule, targetStatus, activeCamera);
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
 
   const handleUpdateStatus = async (id: number, newStatus: 'pending' | 'confirmed' | 'cancelled') => {
     const res = await updateBookingStatusAction(id, newStatus);
@@ -124,15 +220,26 @@ export default function SlotManager({
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-bold text-[#F4A0B5] uppercase tracking-widest">Slot Manager</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                  activeSlotSchedule.status === 'available'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                <span className="text-[11px] font-bold text-[#F4A0B5] uppercase tracking-widest">
+                  Slot Manager
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    activeSlotSchedule.status === 'available'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : activeSlotSchedule.status === 'full'
+                      ? 'bg-rose-50 text-rose-600 border-rose-200'
+                      : 'bg-neutral-100 text-neutral-500 border-neutral-200'
+                  }`}
+                >
+                  {activeSlotSchedule.status === 'available'
+                    ? '● เปิดรับคิว'
                     : activeSlotSchedule.status === 'full'
-                    ? 'bg-rose-50 text-rose-600 border-rose-200'
-                    : 'bg-neutral-100 text-neutral-500 border-neutral-200'
-                }`}>
-                  {activeSlotSchedule.status === 'available' ? '● เปิดรับคิว' : activeSlotSchedule.status === 'full' ? '● คิวเต็ม' : '● ปิดรับคิว'}
+                    ? '● คิวเต็ม'
+                    : '● ปิดรับคิว'}
+                </span>
+                <span className="text-[10px] bg-sky-50 text-sky-700 border border-sky-200 font-bold px-2 py-0.5 rounded-full">
+                  ⚡ Sync LINE Real-time
                 </span>
               </div>
               <h3 className="font-bold text-base sm:text-lg text-[#3D3040] truncate">
@@ -141,7 +248,6 @@ export default function SlotManager({
               <p className="text-[11px] text-[#9E8E95] flex flex-wrap items-center gap-2 mt-0.5">
                 <span>📅 {activeSlotSchedule.date}</span>
                 {activeSlotSchedule.location && <span>📍 {activeSlotSchedule.location}</span>}
-                {selectedCameraName && <span>📷 {selectedCameraName}</span>}
               </p>
             </div>
           </div>
@@ -153,15 +259,61 @@ export default function SlotManager({
           </button>
         </div>
 
+        {/* ===== CAMERA SELECTOR TABS ===== */}
+        <div className="px-6 py-2.5 bg-neutral-50/90 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between gap-3 overflow-x-auto flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-[11px] font-bold text-[#3D3040] flex items-center gap-1">
+              <span>📸</span> เลือกรุ่นกล้อง:
+            </span>
+            {cameras.map(cam => (
+              <button
+                key={cam.id}
+                type="button"
+                onClick={() => {
+                  setActiveCamera(cam.name);
+                  onSelectCamera?.(cam.name);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 flex-shrink-0 border ${
+                  activeCamera === cam.name
+                    ? 'bg-gradient-to-r from-[#F4A0B5] to-[#D4B5E0] text-white border-transparent shadow-xs scale-[1.02]'
+                    : 'bg-white text-[#3D3040] border-[rgba(0,0,0,0.08)] hover:bg-neutral-100/80 hover:border-[#F4A0B5]/40'
+                }`}
+              >
+                <span>📷</span>
+                <span>{cam.name}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCamera('all');
+                onSelectCamera?.('');
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 flex-shrink-0 border ${
+                activeCamera === 'all'
+                  ? 'bg-gradient-to-r from-[#F4A0B5] to-[#D4B5E0] text-white border-transparent shadow-xs scale-[1.02]'
+                  : 'bg-white text-[#3D3040] border-[rgba(0,0,0,0.08)] hover:bg-neutral-100/80 hover:border-[#F4A0B5]/40'
+              }`}
+            >
+              <span>✨</span>
+              <span>ทุกกล้อง (ภาพรวม)</span>
+            </button>
+          </div>
+          <span className="text-[10px] text-[#9E8E95] font-medium hidden md:inline-block">
+            * คิวและสล็อตว่าง/เต็มแยกตามรุ่นกล้องอย่างอิสระ
+          </span>
+        </div>
+
         {/* ===== BODY: 2-COLUMN LAYOUT ===== */}
         <div className="flex flex-col sm:flex-row flex-1 min-h-0 overflow-hidden">
-
           {/* ---- LEFT PANEL: Slot Grid ---- */}
-          <div className="sm:w-72 flex-shrink-0 flex flex-col border-b sm:border-b-0 sm:border-r border-[rgba(0,0,0,0.06)] bg-white/60">
+          <div className="sm:w-80 flex-shrink-0 flex flex-col border-b sm:border-b-0 sm:border-r border-[rgba(0,0,0,0.06)] bg-white/60">
             {/* Stats Bar */}
-            <div className="px-4 pt-4 pb-3 flex-shrink-0 space-y-2">
+            <div className="px-4 pt-3 pb-3 flex-shrink-0 space-y-2">
               <div className="flex items-center justify-between text-[11px] font-bold">
-                <span className="text-[#3D3040]">รอบเวลาทั้งหมด ({slotStats.total} รอบ)</span>
+                <span className="text-[#3D3040] truncate">
+                  รอบเวลา {activeCamera === 'all' ? 'ทุกกล้อง' : activeCamera}
+                </span>
                 <span className="text-[#9E8E95]">{slotStats.bookedPercent}% เต็ม</span>
               </div>
               <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
@@ -171,8 +323,12 @@ export default function SlotManager({
                 />
               </div>
               <div className="flex items-center gap-1.5 text-[11px]">
-                <span className="flex-1 text-center py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">🟢 ว่าง {slotStats.available}</span>
-                <span className="flex-1 text-center py-1 rounded-lg bg-rose-50 text-rose-600 font-bold border border-rose-200">🔴 เต็ม {slotStats.booked}</span>
+                <span className="flex-1 text-center py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                  🟢 ว่าง {slotStats.available}
+                </span>
+                <span className="flex-1 text-center py-1 rounded-lg bg-rose-50 text-rose-600 font-bold border border-rose-200">
+                  🔴 เต็ม {slotStats.booked}
+                </span>
               </div>
             </div>
 
@@ -180,54 +336,109 @@ export default function SlotManager({
             <div className="px-4 pb-3 flex-shrink-0">
               <div className="flex items-center gap-2 p-2 rounded-xl bg-neutral-50 border border-[rgba(0,0,0,0.05)]">
                 <button
-                  onClick={() => setAllSlotsStatus(activeSlotSchedule, 'available')}
-                  className="flex-1 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold transition-all cursor-pointer"
+                  disabled={isBulkLoading}
+                  onClick={() => onBulkSetStatus('available')}
+                  className="flex-1 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 border border-emerald-200 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1"
                 >
-                  🟢 เปิดทั้งหมด
+                  {isBulkLoading ? (
+                    <span className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span>🟢 เปิดทั้งหมด</span>
+                  )}
                 </button>
                 <button
-                  onClick={() => setAllSlotsStatus(activeSlotSchedule, 'booked')}
-                  className="flex-1 py-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-xs font-semibold transition-all cursor-pointer"
+                  disabled={isBulkLoading}
+                  onClick={() => onBulkSetStatus('booked')}
+                  className="flex-1 py-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-50 border border-rose-200 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1"
                 >
-                  🔴 เต็มทั้งหมด
+                  {isBulkLoading ? (
+                    <span className="w-3 h-3 border-2 border-rose-600 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span>🔴 เต็มทั้งหมด</span>
+                  )}
                 </button>
               </div>
             </div>
 
             {/* Scrollable Slot Grid */}
             <div className="flex-1 overflow-y-auto px-4 pb-4">
-              <p className="text-[10px] font-semibold text-[#9E8E95] uppercase tracking-wider mb-2">
-                เลือกรอบเวลาเพื่อดูผู้จอง
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-semibold text-[#9E8E95] uppercase tracking-wider">
+                  รอบเวลา / สลับสถานะ
+                </p>
+                <span className="text-[9px] text-[#9E8E95]">คลิกเพื่อสลับทันที</span>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {activeSlotSchedule.slots.map(slot => {
                   const normTime = slot.time.replace(/\s+/g, '');
-                  const isAvailable = slot.status === 'available';
+                  const slotBookingsList = (bookingsBySlot[normTime] || []).filter(
+                    b => b.status !== 'cancelled'
+                  );
+                  const hasActiveBooking = slotBookingsList.length > 0;
+                  const isEffectivelyBooked = isSlotBookedForCurrentCamera(slot);
+                  const isEffectivelyAvailable = !isEffectivelyBooked;
+
                   const isSelected = selectedSlotTime?.replace(/\s+/g, '') === normTime;
-                  const slotBookingsList = bookingsBySlot[normTime] || [];
-                  const hasBooking = slotBookingsList.length > 0;
+                  const isToggling = togglingSlotTime === slot.time;
                   const firstCustomer = slotBookingsList[0]?.customerName;
 
                   return (
-                    <button
+                    <div
                       key={slot.time}
                       onClick={() => setSelectedSlotTime(isSelected ? null : slot.time)}
-                      className={`py-2.5 px-2 rounded-xl text-xs font-semibold transition-all duration-150 flex flex-col items-center gap-0.5 border cursor-pointer ${
+                      className={`p-2.5 rounded-xl text-xs font-semibold transition-all duration-150 flex flex-col justify-between border cursor-pointer relative group ${
                         isSelected
-                          ? 'bg-[#F4A0B5]/20 border-[#F4A0B5] text-[#3D3040] shadow-sm ring-2 ring-[#F4A0B5]/40 scale-[1.03]'
-                          : isAvailable
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100 hover:scale-[1.01]'
-                          : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 hover:scale-[1.01]'
+                          ? 'bg-[#F4A0B5]/15 border-[#F4A0B5] text-[#3D3040] shadow-sm ring-2 ring-[#F4A0B5]/40 scale-[1.02]'
+                          : isEffectivelyAvailable
+                          ? 'bg-white border-emerald-200/80 text-emerald-900 hover:border-emerald-400 hover:bg-emerald-50/40'
+                          : 'bg-white border-rose-200/80 text-rose-900 hover:border-rose-400 hover:bg-rose-50/40'
                       }`}
                     >
-                      <span className="font-mono text-[11px] font-bold leading-tight">{slot.time}</span>
-                      <span className="text-[10px]">{isAvailable ? '🟢 ว่าง' : '🔴 เต็ม'}</span>
-                      {hasBooking && (
-                        <span className="text-[9px] font-medium text-[#3D3040]/70 bg-white/80 px-1.5 py-px rounded-full border border-neutral-200 mt-0.5 max-w-full truncate">
-                          👤 {firstCustomer}
+                      {/* Time and Customer Header */}
+                      <div className="w-full flex items-center justify-between mb-1.5">
+                        <span className="font-mono text-[11px] font-bold text-[#3D3040]">
+                          {slot.time}
                         </span>
-                      )}
-                    </button>
+                        {hasActiveBooking && (
+                          <span
+                            className="text-[9px] font-medium text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded-md border border-purple-200 truncate max-w-[80px]"
+                            title={`คุณ${firstCustomer}`}
+                          >
+                            👤 {firstCustomer}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Interactive Toggle Button inside Card */}
+                      <button
+                        type="button"
+                        disabled={isToggling}
+                        onClick={e => {
+                          e.stopPropagation();
+                          onToggleSingleSlot(slot.time, isEffectivelyBooked ? 'booked' : 'available');
+                        }}
+                        className={`w-full py-1 px-2 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 border cursor-pointer shadow-2xs ${
+                          isToggling
+                            ? 'bg-neutral-100 text-neutral-400 border-neutral-200'
+                            : isEffectivelyAvailable
+                            ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+                            : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
+                        }`}
+                        title={`คลิกเพื่อสลับสถานะรอบเวลานี้ (${activeCamera})`}
+                      >
+                        {isToggling ? (
+                          <>
+                            <span className="w-2.5 h-2.5 border border-neutral-400 border-t-transparent rounded-full animate-spin" />
+                            <span>กำลังสลับ...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>{isEffectivelyAvailable ? '🟢 ว่าง' : '🔴 เต็ม'}</span>
+                            <span className="text-[9px] opacity-75 font-normal ml-0.5">🔄 สลับ</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -243,37 +454,86 @@ export default function SlotManager({
                   <span className="text-3xl">⏰</span>
                 </div>
                 <p className="font-bold text-sm text-[#3D3040] mb-1">เลือกรอบเวลา</p>
-                <p className="text-xs text-[#9E8E95] font-light">คลิกที่ปุ่มรอบเวลาด้านซ้ายเพื่อดูข้อมูลผู้จองในรอบนั้น</p>
+                <p className="text-xs text-[#9E8E95] font-light max-w-sm">
+                  คลิกที่รอบเวลาด้านซ้ายเพื่อดูข้อมูลผู้จองสำหรับกล้อง{' '}
+                  <strong className="text-[#3D3040]">{activeCamera === 'all' ? 'ทุกรุ่น' : activeCamera}</strong>{' '}
+                  หรือกดปุ่ม <strong>🔄 สลับ</strong> เพื่อเปลี่ยนสถานะ ว่าง/เต็ม ทันที
+                </p>
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-                {/* Selected Slot Header */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[11px] text-[#9E8E95] uppercase tracking-wider font-semibold">รอบเวลาที่เลือก</p>
-                    <h4 className="font-bold text-xl text-[#3D3040] font-mono">{selectedSlotTime} <span className="text-sm font-sans text-[#9E8E95] font-normal">น.</span></h4>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
-                      selectedSlot?.status === 'available'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-rose-50 text-rose-600 border-rose-200'
-                    }`}>
-                      {selectedSlot?.status === 'available' ? '🟢 ว่าง' : '🔴 เต็ม'}
-                    </span>
-                    {selectedSlot && (
-                      <button
-                        onClick={() => {
-                          handleToggleSlot(activeSlotSchedule, selectedSlot.time, selectedSlot.status);
-                          loadBookings();
-                        }}
-                        className="px-3 py-1.5 rounded-full bg-white border border-[rgba(0,0,0,0.10)] text-xs font-semibold text-[#3D3040] hover:bg-neutral-50 cursor-pointer transition-all shadow-2xs"
-                      >
-                        🔄 สลับสถานะ
-                      </button>
-                    )}
-                  </div>
-                </div>
+                {/* Selected Slot Header with Quick Action */}
+                {(() => {
+                  const activeBookings = selectedSlotBookings.filter(b => b.status !== 'cancelled');
+                  const hasActive = activeBookings.length > 0;
+                  const isEffBooked = selectedSlot
+                    ? isSlotBookedForCurrentCamera(selectedSlot)
+                    : hasActive;
+
+                  return (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-[rgba(0,0,0,0.06)] shadow-xs">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] text-[#9E8E95] uppercase tracking-wider font-semibold">
+                            รอบเวลาที่เลือก ({activeCamera === 'all' ? 'ทุกกล้อง' : activeCamera})
+                          </p>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              !isEffBooked
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-rose-50 text-rose-600 border-rose-200'
+                            }`}
+                          >
+                            {!isEffBooked
+                              ? '🟢 สถานะ: ว่าง'
+                              : hasActive
+                              ? '🔴 สถานะ: เต็ม (มีผู้จอง)'
+                              : '🔴 สถานะ: เต็ม (แอดมินล็อก)'}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-xl text-[#3D3040] font-mono mt-0.5">
+                          {selectedSlotTime}{' '}
+                          <span className="text-sm font-sans text-[#9E8E95] font-normal">น.</span>
+                        </h4>
+                      </div>
+
+                      {selectedSlot && (
+                        <button
+                          type="button"
+                          disabled={togglingSlotTime === selectedSlot.time}
+                          onClick={() =>
+                            onToggleSingleSlot(
+                              selectedSlot.time,
+                              isEffBooked ? 'booked' : 'available'
+                            )
+                          }
+                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs border ${
+                            !isEffBooked
+                              ? 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                          }`}
+                        >
+                          {togglingSlotTime === selectedSlot.time ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              <span>กำลังบันทึก...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>🔄</span>
+                              <span>
+                                สลับเป็น{' '}
+                                {!isEffBooked
+                                  ? `🔴 เต็ม (${activeCamera === 'all' ? 'ทุกกล้อง' : activeCamera})`
+                                  : `🟢 ว่าง (${activeCamera === 'all' ? 'ทุกกล้อง' : activeCamera})`}
+                              </span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Divider */}
                 <div className="h-px bg-neutral-100" />
@@ -287,7 +547,10 @@ export default function SlotManager({
                 ) : selectedSlotBookings.length > 0 ? (
                   <div className="space-y-3">
                     <p className="text-xs font-bold text-[#3D3040]">
-                      👤 ผู้จองในรอบนี้ <span className="font-normal text-[#9E8E95]">({selectedSlotBookings.length} รายการ)</span>
+                      👤 ผู้จองในรอบนี้ ({activeCamera === 'all' ? 'ทุกกล้อง' : activeCamera}){' '}
+                      <span className="font-normal text-[#9E8E95]">
+                        ({selectedSlotBookings.length} รายการ)
+                      </span>
                     </p>
 
                     {selectedSlotBookings.map(b => (
@@ -303,7 +566,10 @@ export default function SlotManager({
                             </div>
                             <div>
                               <p className="font-bold text-sm text-[#3D3040]">คุณ{b.customerName}</p>
-                              <a href={`tel:${b.customerPhone}`} className="text-xs text-[#F4A0B5] hover:underline font-mono">
+                              <a
+                                href={`tel:${b.customerPhone}`}
+                                className="text-xs text-[#F4A0B5] hover:underline font-mono"
+                              >
                                 📞 {b.customerPhone}
                               </a>
                             </div>
@@ -313,7 +579,9 @@ export default function SlotManager({
                           <select
                             value={b.status}
                             onChange={e => handleUpdateStatus(b.id, e.target.value as any)}
-                            className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#F4A0B5]/30 flex-shrink-0 ${statusColorMap[b.status]}`}
+                            className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#F4A0B5]/30 flex-shrink-0 ${
+                              statusColorMap[b.status]
+                            }`}
                           >
                             <option value="confirmed">🟢 คอนเฟิร์มแล้ว</option>
                             <option value="pending">🟡 รอคอนเฟิร์ม</option>
@@ -325,11 +593,15 @@ export default function SlotManager({
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div className="bg-[#FFFBFC] p-2.5 rounded-xl border border-[rgba(0,0,0,0.04)]">
                             <span className="text-[10px] text-[#9E8E95] block mb-0.5">💬 ชื่อ LINE</span>
-                            <span className="font-semibold text-[#3D3040] truncate block">{b.lineDisplayName || '—'}</span>
+                            <span className="font-semibold text-[#3D3040] truncate block">
+                              {b.lineDisplayName || '—'}
+                            </span>
                           </div>
                           <div className="bg-[#FFFBFC] p-2.5 rounded-xl border border-[rgba(0,0,0,0.04)]">
-                            <span className="text-[10px] text-[#9E8E95] block mb-0.5">📷 กล้องที่เช่า</span>
-                            <span className="font-semibold text-[#3D3040] truncate block">{b.cameraType || selectedCameraName || '—'}</span>
+                            <span className="text-[10px] text-[#9E8E95] block mb-0.5">📷 รุ่นกล้อง</span>
+                            <span className="font-semibold text-[#3D3040] truncate block">
+                              {b.cameraType || activeCamera || '—'}
+                            </span>
                           </div>
                           {b.notes && (
                             <div className="col-span-2 bg-[#FFFBFC] p-2.5 rounded-xl border border-[rgba(0,0,0,0.04)]">
@@ -351,9 +623,15 @@ export default function SlotManager({
                             }`}
                           >
                             {copiedId === b.id ? (
-                              <><span>✨</span><span>คัดลอกสำเร็จ!</span></>
+                              <>
+                                <span>✨</span>
+                                <span>คัดลอกสำเร็จ!</span>
+                              </>
                             ) : (
-                              <><span>📋</span><span>คัดลอกข้อความยืนยันคิว</span></>
+                              <>
+                                <span>📋</span>
+                                <span>คัดลอกข้อความยืนยันคิว</span>
+                              </>
                             )}
                           </button>
                         </div>
@@ -364,13 +642,15 @@ export default function SlotManager({
                   /* No bookings */
                   <div className="py-10 flex flex-col items-center justify-center gap-2 text-center">
                     <span className="text-3xl">📭</span>
-                    <p className="font-bold text-sm text-[#3D3040]">ยังไม่มีผู้จองในรอบนี้</p>
-                    <p className="text-xs text-[#9E8E95] font-light max-w-xs">
-                      รอบ {selectedSlotTime} น. ยังไม่มีประวัติการจองจากระบบ LINE หรือ Admin
+                    <p className="font-bold text-sm text-[#3D3040]">
+                      ยังไม่มีผู้จองกล้อง "{activeCamera === 'all' ? 'ทุกรุ่น' : activeCamera}" ในรอบนี้
                     </p>
-                    {selectedSlot?.status === 'booked' && (
+                    <p className="text-xs text-[#9E8E95] font-light max-w-xs">
+                      รอบ {selectedSlotTime} น. ยังไม่มีประวัติการจองสำหรับกล้องรุ่นนี้
+                    </p>
+                    {selectedSlot && isSlotBookedForCurrentCamera(selectedSlot) && (
                       <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl mt-1">
-                        ⚠️ รอบเวลานี้ถูกตั้งเป็น "เต็ม" แต่ไม่มีข้อมูลผู้จองในระบบ
+                        🔒 รอบเวลานี้ถูกล็อกเป็น "เต็ม" สำหรับกล้อง "{activeCamera}" โดยแอดมิน
                       </p>
                     )}
                   </div>
@@ -383,7 +663,7 @@ export default function SlotManager({
         {/* ===== FOOTER ===== */}
         <div className="flex items-center justify-between px-6 py-3 border-t border-[rgba(0,0,0,0.06)] flex-shrink-0 bg-white/80">
           <p className="text-[11px] text-[#9E8E95]">
-            คลิกที่รอบเวลาใดๆ เพื่อดู/แก้ไขข้อมูลผู้จอง
+            💡 การเปลี่ยนสถานะรอบเวลาจะบันทึกและ Sync กับ LINE Bot ของกล้องแต่ละรุ่นโดยอัตโนมัติ
           </p>
           <button
             onClick={onClose}
