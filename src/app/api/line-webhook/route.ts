@@ -807,10 +807,32 @@ export async function POST(req: Request) {
           const confirmSlipText = `ได้รับสลิปโอนเงินเรียบร้อยแล้วค่ะ \n\nรับข้อมูลการจองเรียบร้อยแล้วค่ะ\nรอทางแอดมินคอนเฟิร์มคิวสักครู่ค่ะ`;
           await replyToLine(replyToken, { type: 'text', text: confirmSlipText });
 
-          // 2. ส่งเรื่องต่อให้ LINE Admin Interactive Session
+          // 2. บันทึกข้อมูลการจองลง Database ทันที (สถานะ: pending) เพื่อล็อกสล็อตและซิงค์ไปยังหน้าเว็บ
+          let createdBooking: any = null;
+          try {
+            createdBooking = await createBooking({
+              date: session.date || '',
+              eventName: session.eventName || '',
+              timeSlot: session.timeSlot || '',
+              customerName: session.customerName || '',
+              customerPhone: session.customerPhone || '',
+              lineDisplayName: lineDisplayName,
+              lineUserId: userId || undefined,
+              cameraType: session.cameraType || undefined,
+              paymentStatus: 'deposit',
+              depositAmount: 100,
+              notes: `การชำระเงิน: มัดจำ (ลูกค้าแนบสลิปเรียบร้อย)`,
+              status: 'pending',
+            });
+          } catch (err: any) {
+            console.error("⚠️ Error saving pending slip booking:", err.message);
+          }
+
+          // 3. ส่งเรื่องต่อให้ LINE Admin Interactive Session
           const adminUserId = await getLatestAdminUserId();
           if (adminUserId) {
             await setAdminSession(adminUserId, 'awaiting_deposit_amount', {
+              bookingId: createdBooking?.id,
               date: session.date || '',
               eventName: session.eventName || '',
               timeSlot: session.timeSlot || '',
@@ -823,9 +845,10 @@ export async function POST(req: Request) {
               depositAmount: 100,
             });
 
+            const queueIdText = createdBooking?.id ? ` #${createdBooking.id}` : '';
             const adminPrompt = {
               type: 'text',
-              text: `📌 มีการจองคิวใหม่เข้ามาค่ะ! (ลูกค้าส่งสลิปโอนเงินแล้ว 📄)\n🎤 Event: ${session.eventName}\n📅 วันที่: ${session.date}\n⏰ เวลา: ${session.timeSlot} น.\n📷 กล้อง: ${session.cameraType || '-'}\n👤 ผู้จอง: K.${session.customerName} (${session.customerPhone})\n💬 ชื่อไลน์: ${lineDisplayName}\n💳 ลูกค้าส่ง: 📄 สลิปมัดจำ\n━━━━━━━━━━━━━━\n🟡 มัดจำมากี่บาทคะ?\n(กรุณากดเลือกจำนวนมัดจำ หรือพิมพ์ตัวเลข เช่น 100 ทางแชทได้เลยค่ะ 👇)`,
+              text: `📌 มีการจองคิวใหม่เข้ามาค่ะ${queueIdText}! (ลูกค้าส่งสลิปโอนเงินแล้ว 📄)\n🎤 Event: ${session.eventName}\n📅 วันที่: ${session.date}\n⏰ เวลา: ${session.timeSlot} น.\n📷 กล้อง: ${session.cameraType || '-'}\n👤 ผู้จอง: K.${session.customerName} (${session.customerPhone})\n💬 ชื่อไลน์: ${lineDisplayName}\n💳 ลูกค้าส่ง: 📄 สลิปมัดจำ\n━━━━━━━━━━━━━━\n🟡 มัดจำมากี่บาทคะ?\n(กรุณากดเลือกจำนวนมัดจำ หรือพิมพ์ตัวเลข เช่น 100 ทางแชทได้เลยค่ะ 👇)`,
               quickReply: {
                 items: [
                   { type: 'action', action: { type: 'message', label: '💵 100 บาท', text: '100' } },
@@ -836,25 +859,6 @@ export async function POST(req: Request) {
 
             if (event.message?.id) {
               await pushLineMessage(adminUserId, `📄 ได้รับรูปภาพสลิปการโอนเงินจาก K.${session.customerName} เรียบร้อยแล้วค่ะ`, 'admin');
-            }
-          } else {
-            try {
-              await createBooking({
-                date: session.date || '',
-                eventName: session.eventName || '',
-                timeSlot: session.timeSlot || '',
-                customerName: session.customerName || '',
-                customerPhone: session.customerPhone || '',
-                lineDisplayName: lineDisplayName,
-                lineUserId: userId || undefined,
-                cameraType: session.cameraType || undefined,
-                paymentStatus: 'deposit',
-                depositAmount: 100,
-                notes: `การชำระเงิน: มัดจำ (ลูกค้าแนบสลิปเรียบร้อย)`,
-                status: 'pending',
-              });
-            } catch (err: any) {
-              console.error("⚠️ Error saving fallback slip booking:", err.message);
             }
           }
 
@@ -995,9 +999,32 @@ export async function POST(req: Request) {
           const pendingText = `รับข้อมูลการจองเรียบร้อยแล้วค่ะ🙇🏻‍♀️\n\nรอทางแอดมินคอนเฟิร์มคิวสักครู่ค่ะ`;
           await replyToLine(replyToken, { type: 'text', text: pendingText });
 
+          // บันทึกข้อมูลการจองลง Database ทันที (สถานะ: pending) เพื่อล็อกสล็อตและซิงค์ไปยังหน้าเว็บ
+          let createdBooking: any = null;
+          try {
+            createdBooking = await createBooking({
+              date: session.date,
+              eventName: session.eventName,
+              timeSlot: session.timeSlot,
+              customerName: session.customerName,
+              customerPhone: session.customerPhone,
+              lineDisplayName: lineDisplayName,
+              lineUserId: userId || undefined,
+              cameraType: session.cameraType || undefined,
+              paymentStatus: 'paid',
+              depositAmount: 0,
+              remainingAmount: 0,
+              notes: `การชำระเงิน: ชำระเต็มจำนวน`,
+              status: 'pending',
+            });
+          } catch (err: any) {
+            console.error("⚠️ Error saving pending paid booking:", err.message);
+          }
+
           const adminUserId = await getLatestAdminUserId();
           if (adminUserId) {
             await setAdminSession(adminUserId, 'awaiting_final_confirmation', {
+              bookingId: createdBooking?.id,
               date: session.date,
               eventName: session.eventName,
               timeSlot: session.timeSlot,
@@ -1011,9 +1038,10 @@ export async function POST(req: Request) {
               remainingAmount: 0,
             });
 
+            const queueIdText = createdBooking?.id ? ` #${createdBooking.id}` : '';
             const adminPrompt = {
               type: 'text',
-              text: `📌 มีการจองคิวใหม่เข้ามาค่ะ!\n🎤 Event: ${session.eventName}\n📅 วันที่: ${session.date}\n⏰ เวลา: ${session.timeSlot} น.\n📷 กล้อง: ${session.cameraType || '-'}\n👤 ผู้จอง: K.${session.customerName}\n📞 เบอร์โทร: ${session.customerPhone}\n💬 ชื่อไลน์: ${lineDisplayName}\n💳 ชำระเงิน: 💚 ชำระเต็มจำนวน (แอดมินแจ้งรายละเอียดโอนเงินในแชท)\n\nกรุณากดปุ่มเพื่อยืนยันหรือยกเลิกการจองนะคะ 👇`,
+              text: `📌 มีการจองคิวใหม่เข้ามาค่ะ${queueIdText}!\n🎤 Event: ${session.eventName}\n📅 วันที่: ${session.date}\n⏰ เวลา: ${session.timeSlot} น.\n📷 กล้อง: ${session.cameraType || '-'}\n👤 ผู้จอง: K.${session.customerName}\n📞 เบอร์โทร: ${session.customerPhone}\n💬 ชื่อไลน์: ${lineDisplayName}\n💳 ชำระเงิน: 💚 ชำระเต็มจำนวน (แอดมินแจ้งรายละเอียดโอนเงินในแชท)\n\nกรุณากดปุ่มเพื่อยืนยันหรือยกเลิกการจองนะคะ 👇`,
               quickReply: {
                 items: [
                   { type: 'action', action: { type: 'message', label: '✅ ยืนยันการจอง', text: 'ยืนยันการจอง' } },
@@ -1022,29 +1050,12 @@ export async function POST(req: Request) {
               }
             };
             await pushLineMessage(adminUserId, adminPrompt, 'admin');
-          } else {
-            try {
-              await createBooking({
-                date: session.date,
-                eventName: session.eventName,
-                timeSlot: session.timeSlot,
-                customerName: session.customerName,
-                customerPhone: session.customerPhone,
-                lineDisplayName: lineDisplayName,
-                lineUserId: userId || undefined,
-                cameraType: session.cameraType || undefined,
-                paymentStatus: 'paid',
-                notes: `การชำระเงิน: ชำระเต็มจำนวน`,
-                status: 'pending',
-              });
-            } catch (err: any) {
-              console.error("⚠️ Error saving fallback paid booking:", err.message);
-            }
           }
 
           if (userId) await clearLineUserSession(userId);
           return NextResponse.json({ message: 'OK' }, { status: 200 });
         }
+
 
         // STEP D: Non-command messages (ลูกค้าพิมพ์ข้อความทั่วไป หรือสนทนากับแอดมิน)
         // -> ไม่ส่งข้อความตอบกลับอัตโนมัติ เพื่อให้แอดมินสามารถคุยกับลูกค้าได้ตามปกติโดยที่บอทไม่แทรกทุกข้อความ

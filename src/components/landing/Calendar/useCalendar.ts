@@ -21,7 +21,7 @@ export function useCalendar() {
   useEffect(() => {
     const fetchSchedule = async () => {
       try {
-        const res = await fetch('/api/schedule');
+        const res = await fetch('/api/schedule', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           setRemoteScheduleData(data || {});
@@ -33,7 +33,25 @@ export function useCalendar() {
       }
     };
     fetchSchedule();
+
+    const onFocus = () => {
+      fetchSchedule();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchSchedule();
+      }
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
+
 
   const fallbackDate = new Date();
   const year = currentDate ? currentDate.getFullYear() : (thYear !== undefined ? thYear : fallbackDate.getFullYear());

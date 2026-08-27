@@ -37,7 +37,15 @@ export async function getCalendarScheduleData(): Promise<Record<string, DaySched
   for (const record of records) {
     const normDate = record.date.trim();
     const eventBookings = allBookings.filter(b => b.date.trim() === normDate && b.status !== 'cancelled');
-    const bookedSlotsSet = new Set(eventBookings.map(b => (b.timeSlot || '').replace(/\s+/g, '')));
+
+    // Group active bookings by clean time slot
+    const bookingsByCleanSlot = new Map<string, typeof allBookings>();
+    eventBookings.forEach(b => {
+      const cleanTime = (b.timeSlot || '').replace(/\s+/g, '');
+      const list = bookingsByCleanSlot.get(cleanTime) || [];
+      list.push(b);
+      bookingsByCleanSlot.set(cleanTime, list);
+    });
 
     const currentSlots = (record.slots || []) as TimeSlot[];
     const baseSlots: TimeSlot[] = currentSlots.length > 0
@@ -46,11 +54,31 @@ export async function getCalendarScheduleData(): Promise<Record<string, DaySched
 
     const mergedSlots: TimeSlot[] = baseSlots.map(s => {
       const cleanTime = s.time.replace(/\s+/g, '');
-      const isBooked = s.status === 'booked' || bookedSlotsSet.has(cleanTime);
+      const slotBookings = bookingsByCleanSlot.get(cleanTime) || [];
+
+      // Merge cameraStatuses if present
+      const camStatuses = { ...(s.cameraStatuses || {}) };
+      slotBookings.forEach(b => {
+        if (b.cameraType && b.cameraType.trim()) {
+          camStatuses[b.cameraType.trim()] = 'booked';
+        }
+      });
+
+      const camKeys = Object.keys(camStatuses);
+      let isBooked = s.status === 'booked';
+
+      if (camKeys.length > 0) {
+        // If slot has specific camera statuses configured, it's fully booked only if all cameras are booked
+        isBooked = camKeys.every(k => camStatuses[k] === 'booked') || s.status === 'booked';
+      } else {
+        // If no camera statuses configured, any active booking marks the slot as booked
+        isBooked = slotBookings.length > 0 || s.status === 'booked';
+      }
+
       return {
         time: s.time,
         status: isBooked ? ('booked' as SlotStatus) : ('available' as SlotStatus),
-        cameraStatuses: s.cameraStatuses,
+        ...(camKeys.length > 0 ? { cameraStatuses: camStatuses } : (s.cameraStatuses ? { cameraStatuses: s.cameraStatuses } : {})),
       };
     });
 
@@ -138,7 +166,12 @@ export async function updateScheduleSlotStatus(
     target = record;
   } else if (targetDate) {
     const records = await db.select().from(schedules).where(eq(schedules.date, targetDate));
-    target = records.find(r => r.eventName === targetEventName || !targetEventName) || records[0];
+    const normTargetEvent = (targetEventName || '').replace(/[\u2018\u2019\u201C\u201D'"]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+    target = records.find(r => {
+      if (!normTargetEvent) return true;
+      const rName = (r.eventName || '').replace(/[\u2018\u2019\u201C\u201D'"]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+      return rName === normTargetEvent || rName.includes(normTargetEvent) || normTargetEvent.includes(rName);
+    }) || records[0];
   }
 
   if (!target) return false;
@@ -154,10 +187,23 @@ export async function updateScheduleSlotStatus(
       if (cameraType && cameraType !== 'all') {
         updatedCamStatuses[cameraType.trim()] = newStatus;
       }
+
+      let effectiveStatus: SlotStatus = s.status;
+      if (!cameraType || cameraType === 'all') {
+        effectiveStatus = newStatus;
+      } else {
+        const camKeys = Object.keys(updatedCamStatuses);
+        if (newStatus === 'booked' && camKeys.length > 0 && camKeys.every(k => updatedCamStatuses[k] === 'booked')) {
+          effectiveStatus = 'booked';
+        } else if (newStatus === 'available') {
+          effectiveStatus = 'available';
+        }
+      }
+
       return {
         ...s,
-        status: (!cameraType || cameraType === 'all') ? newStatus : s.status,
-        ...(cameraType && cameraType !== 'all' ? { cameraStatuses: updatedCamStatuses } : {}),
+        status: effectiveStatus,
+        ...(Object.keys(updatedCamStatuses).length > 0 ? { cameraStatuses: updatedCamStatuses } : {}),
       };
     }
     return s;
@@ -171,7 +217,7 @@ export async function updateScheduleSlotStatus(
     updatedSlots.push({
       time: timeSlot.trim(),
       status: (!cameraType || cameraType === 'all') ? newStatus : 'available',
-      ...(cameraType && cameraType !== 'all' ? { cameraStatuses: camStatuses } : {}),
+      ...(Object.keys(camStatuses).length > 0 ? { cameraStatuses: camStatuses } : {}),
     });
   }
 

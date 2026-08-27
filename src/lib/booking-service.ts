@@ -96,7 +96,7 @@ export async function createBooking(data: {
 
   if (inserted.status !== 'cancelled') {
     try {
-      await updateScheduleSlotStatus(normDate, normEvent, data.timeSlot, 'booked');
+      await updateScheduleSlotStatus(normDate, normEvent, data.timeSlot, 'booked', data.cameraType || undefined);
     } catch (e) {
       console.warn('Could not auto-sync slot status to schedules table:', e);
     }
@@ -133,26 +133,29 @@ export async function updateBookingStatus(
   // If status is updated
   if (status === 'cancelled') {
     try {
-      // Check if there are other active bookings for the same date and slot
+      // Check if there are other active bookings for the same date, slot, and camera
       const otherBookings = await db
         .select()
         .from(bookings)
         .where(eq(bookings.date, existing.date));
 
       const cleanSlot = (existing.timeSlot || '').replace(/\s+/g, '');
-      const hasOtherActiveBooking = otherBookings.some(
-        b => b.id !== id && b.status !== 'cancelled' && (b.timeSlot || '').replace(/\s+/g, '') === cleanSlot
+      const existingCamNorm = (existing.cameraType || '').trim().toLowerCase();
+      const hasOtherActiveBookingForSameCam = otherBookings.some(
+        b => b.id !== id && b.status !== 'cancelled' &&
+             (b.timeSlot || '').replace(/\s+/g, '') === cleanSlot &&
+             (!existingCamNorm || !(b.cameraType || '').trim() || (b.cameraType || '').trim().toLowerCase() === existingCamNorm)
       );
 
-      if (!hasOtherActiveBooking) {
-        await updateScheduleSlotStatus(existing.date, existing.eventName, existing.timeSlot, 'available');
+      if (!hasOtherActiveBookingForSameCam) {
+        await updateScheduleSlotStatus(existing.date, existing.eventName, existing.timeSlot, 'available', existing.cameraType || undefined);
       }
     } catch (e) {
       console.warn('Could not sync slot status on cancellation:', e);
     }
   } else if (status === 'confirmed' || status === 'pending') {
     try {
-      await updateScheduleSlotStatus(existing.date, existing.eventName, existing.timeSlot, 'booked');
+      await updateScheduleSlotStatus(existing.date, existing.eventName, existing.timeSlot, 'booked', existing.cameraType || undefined);
     } catch (e) {
       console.warn('Could not sync slot status on update:', e);
     }
@@ -203,7 +206,7 @@ export async function confirmOrCreateBooking(data: {
 
       if (updated.status !== 'cancelled') {
         try {
-          await updateScheduleSlotStatus(normDate, normEvent, data.timeSlot, 'booked');
+          await updateScheduleSlotStatus(normDate, normEvent, data.timeSlot, 'booked', data.cameraType || undefined);
         } catch (e) {
           console.warn('Could not sync slot status on confirm bookingId:', e);
         }
@@ -247,7 +250,7 @@ export async function confirmOrCreateBooking(data: {
 
     if (updated.status !== 'cancelled') {
       try {
-        await updateScheduleSlotStatus(normDate, normEvent, data.timeSlot, 'booked');
+        await updateScheduleSlotStatus(normDate, normEvent, data.timeSlot, 'booked', data.cameraType || undefined);
       } catch (e) {
         console.warn('Could not sync slot status on confirm pendingBooking:', e);
       }
@@ -259,6 +262,7 @@ export async function confirmOrCreateBooking(data: {
   // 3. Otherwise create new booking via createBooking
   return await createBooking(data);
 }
+
 
 /**
  * Cancel pending booking if exists
