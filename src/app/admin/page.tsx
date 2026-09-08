@@ -1,52 +1,39 @@
-'use client';
+import { cookies } from 'next/headers';
+import { verifyAdminSessionToken } from '@/features/admin/lib/admin-auth-server';
+import { getAllBookings } from '@/shared/services/booking-service';
+import { getActiveCameras } from '@/shared/services/camera-service';
+import { getAllScheduleRecords } from '@/shared/services/schedule-service';
+import AdminDashboard from '@/features/admin/components/AdminDashboard';
+import AdminLoginClient from '@/features/admin/components/AdminLoginClient';
 
-import { useAdminAuth } from '@/components/admin/useAdminAuth';
-import AdminLogin from '@/components/admin/AdminLogin';
-import AdminDashboard from '@/components/admin/AdminDashboard';
+export const dynamic = 'force-dynamic';
 
-export default function AdminPage() {
-  const {
-    isAuthenticated,
-    isCheckingAuth,
-    username,
-    setUsername,
-    password,
-    setPassword,
-    showPassword,
-    setShowPassword,
-    isLoggingIn,
-    loginError,
-    handleLogin,
-    handleLogout,
-  } = useAdminAuth();
-
-  // Loading screen while checking auth
-  if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen bg-[#FFFBFC] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 rounded-full border-2 border-[#F4A0B5]/20 border-t-[#F4A0B5] animate-spin"></div>
-          <p className="text-[#9E8E95] text-sm font-light">กำลังตรวจสอบสิทธิ์...</p>
-        </div>
-      </div>
-    );
-  }
+export default async function AdminPage() {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get('admin_session')?.value;
+  const isAuthenticated = verifyAdminSessionToken(sessionToken);
 
   if (!isAuthenticated) {
-    return (
-      <AdminLogin
-        username={username}
-        setUsername={setUsername}
-        password={password}
-        setPassword={setPassword}
-        showPassword={showPassword}
-        setShowPassword={setShowPassword}
-        isLoggingIn={isLoggingIn}
-        loginError={loginError}
-        handleLogin={handleLogin}
-      />
-    );
+    return <AdminLoginClient />;
   }
 
-  return <AdminDashboard handleLogout={handleLogout} />;
+  // Fetch all initial data in parallel directly inside Node.js server runtime!
+  // Utilizes in-memory caches to deliver instant server-rendered dashboard data.
+  const startMs = Date.now();
+  const [initialBookings, initialCameras, initialSchedules] = await Promise.all([
+    getAllBookings(),
+    getActiveCameras(),
+    getAllScheduleRecords(),
+  ]);
+  console.log(`[AdminPage] parallel initial data fetched in ${Date.now() - startMs}ms`);
+
+  return (
+    <AdminDashboard
+      initialData={{
+        bookings: initialBookings,
+        cameras: initialCameras,
+        schedules: initialSchedules,
+      }}
+    />
+  );
 }

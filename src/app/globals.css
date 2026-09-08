@@ -30,8 +30,43 @@
   --color-surface: var(--bg-surface);
   --color-card: var(--bg-card);
   --color-elevated: var(--bg-elevated);
-  --font-sans: var(--font-inter);
-  --font-display: var(--font-outfit);
+  --font-sans: var(--font-inter), var(--font-thai), system-ui, sans-serif;
+  --font-display: var(--font-outfit), var(--font-thai), system-ui, sans-serif;
+}
+
+/* ===== ADMIN TYPE SCALE =====
+   `--text-micro` ต้องอยู่ใน @theme (ไม่ใช่ @theme inline) เพื่อให้ Tailwind สร้าง
+   utility `text-micro` ที่อ้าง var() แทนการฝังค่าคงที่ */
+@theme {
+  --text-micro: 0.75rem;
+  --text-micro--line-height: calc(1.125 / 0.75);
+}
+
+/* ===== ADMIN SCOPE =====
+   Tailwind v4 คอมไพล์ `text-xs` เป็น `font-size: var(--text-xs)` ซึ่งอ่านค่าตอนใช้งาน
+   การ override ตัวแปรใน scope นี้จึงขยายขนาดตัวอักษรทั้งหน้า admin ได้โดยไม่ต้องแก้
+   ทีละ component และไม่กระทบหน้าเว็บสาธารณะ */
+.admin-ui {
+  --text-xs: 0.8125rem;   /* 12px -> 13px : ป้ายกำกับ / meta */
+  --text-sm: 0.9375rem;   /* 14px -> 15px : เนื้อความ */
+  --text-base: 1rem;      /* 16px         : ค่าที่ต้องอ่านชัด */
+
+  /* ภาษาไทยวางสระ/วรรณยุกต์ซ้อนทั้งบนและล่างบรรทัด line-height ค่าเริ่มต้นของ Tailwind
+     (~1.33 สำหรับ text-xs) จึงแคบเกินจนวรรณยุกต์บรรทัดบนชนสระบรรทัดล่าง */
+  --text-micro--line-height: 1.5;
+  --text-xs--line-height: 1.55;
+  --text-sm--line-height: 1.6;
+  --text-base--line-height: 1.65;
+  --text-lg--line-height: 1.5;
+  --text-xl--line-height: 1.45;
+  --text-2xl--line-height: 1.35;
+  --text-3xl--line-height: 1.3;
+
+  /* คอนทราสต์: #9E8E95 บนพื้นขาวได้ ~3.1:1 ซึ่งไม่ผ่าน WCAG AA สำหรับตัวอักษรขนาดเล็ก */
+  --ink: #3D3040;
+  --ink-muted: #6F6169;   /* ~5.2:1 — ใช้กับป้ายกำกับและ meta ทั้งหมด */
+  --ink-faint: #9E8E95;   /* เหลือไว้เฉพาะตัวอักษร >= 16px หรือของตกแต่ง */
+  --hairline: rgba(0, 0, 0, 0.1);
 }
 
 /* ===== BASE STYLES ===== */
@@ -49,7 +84,7 @@ html {
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: var(--font-inter, 'Inter', sans-serif);
+  font-family: var(--font-inter), var(--font-thai), system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

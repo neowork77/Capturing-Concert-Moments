@@ -69,5 +69,10 @@ ADMIN_PASSWORD=your_password
 ## 🌐 API Routes & Admin
 
 - `GET /api/schedule`: Fetches schedule data from Supabase for the Calendar component.
-- `POST /api/line-webhook`: Processes incoming LINE bot messages and queries schedule data from Supabase.
 - `/admin`: Studio Admin control panel with tabs for **Gallery Management** and **Schedule & Slots Management**.
+
+## 🤖 LINE Bots (Python / FastAPI)
+
+ระบบ LINE Bots (ทั้ง Customer Bot และ Admin Bot) ได้รับการย้ายไปยังโฟลเดอร์ `LINEBOT/` โดยใช้ Python (FastAPI + SQLAlchemy)
+- รายละเอียดและการตั้งค่าดูได้ที่ [LINEBOT/README.md](LINEBOT/README.md)
+

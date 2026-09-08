@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { db } from '@/db/db';
 import { images } from '@/db/schema';
-import { uploadToR2 } from '@/lib/r2-service';
-import { verifyAdminSessionToken } from '@/lib/auth-utils';
+import { uploadToR2 } from '@/shared/services/r2-service';
+import { verifyAdminSessionToken } from '@/features/admin/lib/auth-utils';
 
 export const dynamic = 'force-dynamic';
 

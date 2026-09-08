@@ -1,4 +1,4 @@
-import { pgTable, serial, text, bigint, jsonb, boolean, integer } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, bigint, jsonb, boolean, integer, index } from 'drizzle-orm/pg-core';
 
 export const images = pgTable('images', {
   id: serial('id').primaryKey(),
@@ -15,7 +15,9 @@ export const schedules = pgTable('schedules', {
   imageUrl: text('image_url'),
   slots: jsonb('slots').notNull().$type<{ time: string; status: 'available' | 'booked' }[]>(),
   createdAt: bigint('created_at', { mode: 'number' }).notNull(),
-});
+}, (table) => [
+  index('schedules_date_idx').on(table.date),
+]);
 
 export const bookings = pgTable('bookings', {
   id: serial('id').primaryKey(),
@@ -33,7 +35,11 @@ export const bookings = pgTable('bookings', {
   remainingAmount: integer('remaining_amount').default(0),
   notes: text('notes'),
   createdAt: bigint('created_at', { mode: 'number' }).notNull(),
-});
+}, (table) => [
+  index('bookings_date_idx').on(table.date),
+  index('bookings_status_idx').on(table.status),
+  index('bookings_date_status_idx').on(table.date, table.status),
+]);
 
 export const cameras = pgTable('cameras', {
   id: serial('id').primaryKey(),
@@ -43,11 +49,13 @@ export const cameras = pgTable('cameras', {
   description: text('description'),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: bigint('created_at', { mode: 'number' }).notNull(),
-});
+}, (table) => [
+  index('cameras_is_active_idx').on(table.isActive),
+]);
 
 /**
- * Temporary LINE user session storage (replaces in-memory Map for serverless compatibility)
- * Stores the user's selected event/date/camera between webhook calls
+ * LINE user session storage (used by LINEBOT / customer_bot)
+ * Preserved in Drizzle schema to keep PostgreSQL tables in sync
  */
 export const lineSessions = pgTable('line_sessions', {
   lineUserId: text('line_user_id').primaryKey(),
@@ -62,6 +70,10 @@ export const lineSessions = pgTable('line_sessions', {
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
 });
 
+/**
+ * LINE admin interactive session storage (used by LINEBOT / admin_bot)
+ * Preserved in Drizzle schema to keep PostgreSQL tables in sync
+ */
 export const adminSessions = pgTable('admin_sessions', {
   lineUserId: text('line_user_id').primaryKey(),
   step: text('step').notNull(),
@@ -82,4 +94,3 @@ export const adminSessions = pgTable('admin_sessions', {
   }>(),
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
 });
-

@@ -48,3 +48,15 @@ next-env.d.ts
 
 # Google Credentials
 google-credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+

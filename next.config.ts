@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import path from 'path';
 
 const nextConfig: NextConfig = {
   images: {
@@ -21,14 +22,18 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '20mb',
-    },
-  },
-  // ล็อคเป้าหมายให้ Turbopack สแกนเฉพาะในโฟลเดอร์นี้เพื่อไม่ให้ค้าง
+  // ล็อคเป้าหมายให้ Turbopack สแกนเฉพาะในโฟลเดอร์นี้เพื่อไม่ให้ค้าง (ใช้ absolute path เพื่อป้องกัน warning)
   turbopack: {
-    root: './', 
+    root: path.resolve(process.cwd()), 
+  },
+  async redirects() {
+    return [
+      {
+        source: '/upload',
+        destination: '/admin/upload',
+        permanent: true,
+      },
+    ];
   },
 };
 

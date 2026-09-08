@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
-import { getCalendarScheduleData } from '@/lib/schedule-service';
+import { getCalendarScheduleData } from '@/shared/services/schedule-service';
 
 export async function GET() {
   try {

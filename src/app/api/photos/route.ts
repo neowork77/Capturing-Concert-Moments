@@ -3,8 +3,8 @@ import { cookies } from 'next/headers';
 import { db } from '@/db/db';
 import { images } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
-import { Photo } from '@/data/photos';
-import { verifyAdminSessionToken } from '@/lib/auth-utils';
+import { Photo } from '@/shared/types/photo';
+import { verifyAdminSessionToken } from '@/features/admin/lib/auth-utils';
 
 export const dynamic = 'force-dynamic';
 
