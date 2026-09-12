@@ -738,10 +738,15 @@ export default function SlotManager({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-6 animate-fade-in"
-      onClick={onClose}
-    >
+    <>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-6 animate-fade-in"
+        onClick={e => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+      >
       <div
         data-lenis-prevent
         className="bg-[#FDFBFC] rounded-[1.75rem] sm:rounded-[2rem] w-full max-w-6xl shadow-2xl border border-[rgba(0,0,0,0.06)] relative flex flex-col h-[calc(100dvh-1rem)] sm:h-[88vh] max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100vh-3rem)] overflow-hidden"
@@ -1922,6 +1927,7 @@ export default function SlotManager({
           </div>
         </div>
       </div>
+    </div>
 
       {/* FULL EDIT BOOKING MODAL */}
       {editingBooking && (
@@ -1950,7 +1956,7 @@ export default function SlotManager({
           onClose={() => setIsCreateBookingModalOpen(false)}
         />
       )}
-    </div>
+    </>
   );
 }
 

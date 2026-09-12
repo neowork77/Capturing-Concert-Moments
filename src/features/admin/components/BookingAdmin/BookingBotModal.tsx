@@ -103,9 +103,30 @@ K.${customerName || 'ชื่อลูกค้า'} ${customerPhone || ''}
     setTimeout(() => setCopiedType(null), 2500);
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full p-4 sm:p-7 shadow-2xl border border-[rgba(0,0,0,0.06)] relative max-h-[calc(100dvh-1.5rem)] sm:max-h-[92vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4 animate-fade-in"
+      onClick={e => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        data-lenis-prevent
+        className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full p-4 sm:p-7 shadow-2xl border border-[rgba(0,0,0,0.06)] relative max-h-[calc(100dvh-1.5rem)] sm:max-h-[92vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
         {/* Close Button */}
         <button
           type="button"
